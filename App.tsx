@@ -26,6 +26,39 @@ import StatsCard from './components/StatsCard';
 import { defineWord } from './services/geminiService';
 import { ENABLE_AI_INSIGHT } from './config';
 
+// Confetti particle component
+const ConfettiParticle = ({ x, y, color }: { x: number; y: number; color: string }) => {
+  const angle = Math.random() * Math.PI * 2;
+  const velocity = 5 + Math.random() * 10;
+  const tx = Math.cos(angle) * velocity * 15;
+  const ty = Math.sin(angle) * velocity * 15;
+  const rotation = Math.random() * 360;
+
+  return (
+    <motion.div
+      initial={{ x, y, opacity: 1, scale: 1, rotate: 0 }}
+      animate={{ 
+        x: x + tx, 
+        y: y + ty + 200, // Gravity effect
+        opacity: 0,
+        scale: 0.5,
+        rotate: rotation + 720
+      }}
+      transition={{ 
+        duration: 2 + Math.random() * 1.5,
+        ease: "easeOut"
+      }}
+      className="fixed z-[200] pointer-events-none"
+      style={{
+        width: Math.random() * 8 + 4,
+        height: Math.random() * 8 + 4,
+        backgroundColor: color,
+        borderRadius: Math.random() > 0.5 ? '50%' : '2px'
+      }}
+    />
+  );
+};
+
 const App: React.FC = () => {
   const [players, setPlayers] = useState<Player[]>([
     { id: '1', name: 'Player 1', turns: [] },
@@ -47,9 +80,13 @@ const App: React.FC = () => {
     playIdx: number,
     play: Play
   } | null>(null);
+  const [clickCoords, setClickCoords] = useState<{ x: number, y: number } | null>(null);
   const [isEditInputActive, setIsEditInputActive] = useState(false);
   const [editWordValue, setEditWordValue] = useState('');
   const [editPointsValue, setEditPointsValue] = useState('');
+  
+  // Celebration State
+  const [confetti, setConfetti] = useState<{ x: number, y: number, id: number } | null>(null);
 
   // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -60,7 +97,6 @@ const App: React.FC = () => {
     players.some(p => p.turns.length > 0),
   [players]);
 
-  // Helper to calculate score for any player
   const getPlayerStats = useCallback((player: Player): PlayerStats => {
     let totalScore = 0;
     let allPlays: Play[] = [];
@@ -85,7 +121,6 @@ const App: React.FC = () => {
     return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
-  // Leaderboard sorting logic
   const rankedPlayers = useMemo(() => {
     return [...players].sort((a, b) => {
       const statsA = getPlayerStats(a);
@@ -147,8 +182,9 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
   };
 
-  const handlePlayClick = (playerId: string, roundIdx: number, playIdx: number, play: Play) => {
+  const handlePlayClick = (e: React.MouseEvent, playerId: string, roundIdx: number, playIdx: number, play: Play) => {
     if (play.word === '—' || play.isRemoved) return;
+    setClickCoords({ x: e.clientX, y: e.clientY });
     setSelectedPlayRef({ playerId, roundIdx, playIdx, play });
     setEditWordValue(play.word);
     setEditPointsValue(play.points.toString());
@@ -164,10 +200,7 @@ const App: React.FC = () => {
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
       const newPlays = [...turn.plays];
-      
-      // Instead of splicing, mark as removed to allow undo
       newPlays[playIdx] = { ...newPlays[playIdx], isRemoved: true };
-      
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
     }));
@@ -212,24 +245,36 @@ const App: React.FC = () => {
     if (!selectedPlayRef) return;
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
 
+    const currentBingo = !!selectedPlayRef.play.isBingo;
+    const becomingBingo = !currentBingo;
+
     setPlayers(prev => prev.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
       const newPlays = [...turn.plays];
       
-      // Toggle bingo
-      const currentBingo = !!newPlays[playIdx].isBingo;
       newPlays[playIdx] = { 
         ...newPlays[playIdx], 
         points: currentBingo ? newPlays[playIdx].points - 50 : newPlays[playIdx].points + 50,
-        isBingo: !currentBingo 
+        isBingo: becomingBingo
       };
       
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
     }));
+
     setSelectedPlayRef(null);
+
+    // Trigger celebration if it just became a bingo
+    if (becomingBingo && clickCoords) {
+      // Delay slightly to allow modal to close
+      setTimeout(() => {
+        setConfetti({ x: clickCoords.x, y: clickCoords.y, id: Date.now() });
+        // Clear confetti after animation
+        setTimeout(() => setConfetti(null), 4000);
+      }, 300);
+    }
   };
 
   useEffect(() => {
@@ -254,7 +299,6 @@ const App: React.FC = () => {
       const newTurns = [...player.turns];
       
       if (newTurns[roundIdx]) {
-        // If current round was a "Skip" (---), replace it with the new word
         const filteredPlays = newTurns[roundIdx].plays.filter(p => p.word !== '—');
         newTurns[roundIdx] = {
           ...newTurns[roundIdx],
@@ -323,9 +367,24 @@ const App: React.FC = () => {
   }, [wordInput]);
 
   const currentPlayer = players[currentPlayerIndex];
+  const confettiColors = ['#F59E0B', '#FCD34D', '#3B82F6', '#EF4444', '#10B981', '#8B5CF6'];
 
   return (
     <div className="min-h-screen bg-stone-100 pb-12">
+      {/* Confetti Celebration */}
+      {confetti && (
+        <div className="fixed inset-0 pointer-events-none z-[200]">
+          {Array.from({ length: 40 }).map((_, i) => (
+            <ConfettiParticle 
+              key={`${confetti.id}-${i}`} 
+              x={confetti.x} 
+              y={confetti.y} 
+              color={confettiColors[i % confettiColors.length]} 
+            />
+          ))}
+        </div>
+      )}
+
       {/* Word Management Modal */}
       <AnimatePresence>
         {selectedPlayRef && (
@@ -436,7 +495,7 @@ const App: React.FC = () => {
             className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
             onClick={() => setIsResetModalOpen(false)}
           />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <AlertTriangle className="text-amber-600" size={32} />
@@ -755,7 +814,7 @@ const App: React.FC = () => {
                                 return (
                                   <button 
                                     key={playIdx} 
-                                    onClick={() => handlePlayClick(p.id, roundIdx, playIdx, play)}
+                                    onClick={(e) => handlePlayClick(e, p.id, roundIdx, playIdx, play)}
                                     className={`flex items-center justify-between w-full text-left p-1 -m-1 rounded-lg hover:bg-stone-100/80 transition-all group/play animate-in fade-in slide-in-from-left-2 duration-300 ${play.word === '—' ? 'cursor-default pointer-events-none' : 'cursor-pointer'}`}
                                   >
                                     <span className={`text-base leading-tight break-words max-w-[150px] uppercase tracking-wide transition-all ${
