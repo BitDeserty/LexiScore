@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoadingDef, setIsLoadingDef] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   
   // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
@@ -254,8 +255,17 @@ const App: React.FC = () => {
       <header className="bg-[#0c1a26] text-white shadow-2xl py-6 sticky top-0 z-50 border-b-4 border-amber-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-5">
-            <div className="p-3 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
-              <Trophy className="text-[#0c1a26]" size={32} strokeWidth={2.5} />
+            <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800">
+              {!logoError ? (
+                <img 
+                  src="./bitdeserty_avatar_small.jpg" 
+                  alt="BitDeserty Studios Logo" 
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <Trophy className="text-amber-500" size={28} />
+              )}
             </div>
             <div>
               <h1 className="text-4xl font-bold tracking-tight scrabble-font leading-none text-white drop-shadow-md">LexiScore</h1>
