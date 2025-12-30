@@ -1,7 +1,11 @@
 
-export interface Turn {
+export interface Play {
   word: string;
   points: number;
+}
+
+export interface Turn {
+  plays: Play[];
   timestamp: number;
 }
 
@@ -20,6 +24,6 @@ export interface GameState {
 export interface PlayerStats {
   totalScore: number;
   averagePoints: number;
-  highestWord: { word: string; points: number } | null;
+  highestWord: Play | null;
   wordCount: number;
 }

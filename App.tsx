@@ -13,10 +13,9 @@ import {
   Trophy, 
   Gamepad2, 
   ClipboardList,
-  Dices,
   Hash
 } from 'lucide-react';
-import { Player, Turn, PlayerStats } from './types';
+import { Player, Turn, PlayerStats, Play } from './types';
 import StatsCard from './components/StatsCard';
 import { defineWord } from './services/geminiService';
 
@@ -41,7 +40,7 @@ const App: React.FC = () => {
   [players]);
 
   const startNewGame = useCallback(() => {
-    if (confirm("Reset current game and scores?")) {
+    if (confirm("Are you sure? This will reset the current game and all scores will be lost.")) {
       setPlayers(prev => prev.map(p => ({ ...p, turns: [] })));
       setCurrentPlayerIndex(0);
       setGameRound(1);
@@ -89,6 +88,10 @@ const App: React.FC = () => {
     if (!wordInput.trim() || isNaN(points)) return;
 
     const roundIdx = gameRound - 1;
+    const newPlay: Play = { 
+      word: wordInput.trim().toUpperCase(), 
+      points 
+    };
 
     setPlayers(prev => {
       const updated = [...prev];
@@ -96,15 +99,15 @@ const App: React.FC = () => {
       const newTurns = [...player.turns];
       
       if (newTurns[roundIdx]) {
+        // Add to existing round
         newTurns[roundIdx] = {
           ...newTurns[roundIdx],
-          word: `${newTurns[roundIdx].word}, ${wordInput.trim().toUpperCase()}`,
-          points: newTurns[roundIdx].points + points,
+          plays: [...newTurns[roundIdx].plays, newPlay]
         };
       } else {
+        // Start new round entry
         newTurns[roundIdx] = {
-          word: wordInput.trim().toUpperCase(),
-          points,
+          plays: [newPlay],
           timestamp: Date.now()
         };
       }
@@ -123,12 +126,16 @@ const App: React.FC = () => {
     const roundIdx = gameRound - 1;
     
     setPlayers(prev => {
+      // If player played nothing this round, mark as skipped
       if (prev[currentPlayerIndex].turns[roundIdx]) return prev;
       
       const updated = [...prev];
       const player = { ...updated[currentPlayerIndex] };
       const newTurns = [...player.turns];
-      newTurns[roundIdx] = { word: '—', points: 0, timestamp: Date.now() };
+      newTurns[roundIdx] = { 
+        plays: [{ word: '—', points: 0 }], 
+        timestamp: Date.now() 
+      };
       player.turns = newTurns;
       updated[currentPlayerIndex] = player;
       return updated;
@@ -146,21 +153,27 @@ const App: React.FC = () => {
   }, [players.length, currentPlayerIndex, gameRound]);
 
   const getPlayerStats = useCallback((player: Player): PlayerStats => {
-    const totalScore = player.turns.reduce((sum, t) => sum + (t?.points || 0), 0);
-    const validTurns = player.turns.filter(t => t && t.word !== '—');
-    const wordCount = validTurns.length;
-    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
+    let totalScore = 0;
+    let allPlays: Play[] = [];
     
-    const highestRound = player.turns.length > 0 
-      ? [...player.turns].filter(t => t).sort((a, b) => b.points - a.points)[0]
+    player.turns.forEach(turn => {
+      if (turn) {
+        turn.plays.forEach(play => {
+          if (play.word !== '—') {
+            totalScore += play.points;
+            allPlays.push(play);
+          }
+        });
+      }
+    });
+
+    const wordCount = allPlays.length;
+    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
+    const highestWord = allPlays.length > 0 
+      ? [...allPlays].sort((a, b) => b.points - a.points)[0]
       : null;
 
-    return { 
-      totalScore, 
-      averagePoints, 
-      highestWord: highestRound && highestRound.word !== '—' ? highestRound : null, 
-      wordCount 
-    };
+    return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
   useEffect(() => {
@@ -197,7 +210,12 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={startNewGame}
-              className="flex items-center gap-2 bg-[#1a2e40] hover:bg-[#253d54] text-stone-300 px-5 py-2.5 rounded-xl transition-all border border-stone-700 active:scale-95 font-semibold"
+              disabled={!isGameStarted}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border font-semibold ${
+                isGameStarted 
+                ? 'bg-[#1a2e40] hover:bg-[#253d54] text-stone-300 border-stone-700 active:scale-95' 
+                : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed opacity-50'
+              }`}
             >
               <RotateCcw size={18} />
               <span className="hidden sm:inline">Reset Game</span>
@@ -311,7 +329,7 @@ const App: React.FC = () => {
                     className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-stone-900 py-5 rounded-2xl font-black text-xl shadow-xl shadow-amber-900/20 transition-all flex items-center justify-center gap-2 border-b-4 border-amber-800 active:border-b-0 active:translate-y-1"
                   >
                     <Send size={24} />
-                    ADD SCORE
+                    ADD WORD
                   </button>
                   
                   <button
@@ -368,11 +386,6 @@ const App: React.FC = () => {
               <ClipboardList className="text-amber-500" size={24} />
               Score Sheet
             </h2>
-            <div className="flex gap-2.5">
-               <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-               <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
-               <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-            </div>
           </div>
           
           <div className="overflow-x-auto flex-grow custom-scrollbar">
@@ -418,22 +431,40 @@ const App: React.FC = () => {
                 {Array.from({ length: Math.max(gameRound, 1) }).map((_, roundIdx) => (
                   <tr key={roundIdx} className={`transition-all duration-300 ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`}>
                     <td className="px-8 py-5 text-sm font-black text-stone-400">{roundIdx + 1}</td>
-                    {players.map((p, playerIdx) => (
-                      <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 ${playerIdx === currentPlayerIndex && roundIdx === gameRound - 1 ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
-                        {p.turns[roundIdx] ? (
-                          <div className="flex items-start justify-between gap-4">
-                            <span className="text-base font-bold text-stone-800 leading-tight break-words max-w-[150px] uppercase tracking-wide">
-                              {p.turns[roundIdx].word}
-                            </span>
-                            <span className="text-sm font-black bg-stone-100 px-3 py-1 rounded-lg text-stone-700 shrink-0 border border-stone-200">
-                              {p.turns[roundIdx].points}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-stone-200 text-xl font-light opacity-50">—</span>
-                        )}
-                      </td>
-                    ))}
+                    {players.map((p, playerIdx) => {
+                      const turn = p.turns[roundIdx];
+                      const roundTotal = turn ? turn.plays.reduce((sum, play) => sum + play.points, 0) : 0;
+                      
+                      return (
+                        <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 ${playerIdx === currentPlayerIndex && roundIdx === gameRound - 1 ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
+                          {turn ? (
+                            <div className="flex flex-col gap-2">
+                              {turn.plays.map((play, playIdx) => (
+                                <div key={playIdx} className="flex items-center justify-between gap-4 group/play animate-in fade-in slide-in-from-left-2 duration-300">
+                                  <span className={`text-base font-bold leading-tight break-words max-w-[150px] uppercase tracking-wide ${play.word === '—' ? 'text-stone-300 italic font-normal' : 'text-stone-800'}`}>
+                                    {play.word}
+                                  </span>
+                                  <span className="text-[10px] font-black bg-stone-100 px-2 py-0.5 rounded-lg text-stone-600 shrink-0 border border-stone-200 shadow-sm group-hover/play:bg-stone-200 transition-colors">
+                                    {play.points}
+                                  </span>
+                                </div>
+                              ))}
+                              
+                              {turn.plays.length > 1 && (
+                                <div className="mt-1 pt-1 border-t border-amber-100 flex justify-end">
+                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-200">
+                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter">TOTAL</span>
+                                    <span className="text-[11px] font-black text-amber-700">{roundTotal}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-stone-200 text-xl font-light opacity-50">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
                 
@@ -455,27 +486,22 @@ const App: React.FC = () => {
               <tfoot className="sticky bottom-0 bg-[#0c1a26] text-white font-bold border-t-4 border-amber-500 shadow-[0_-8px_15px_rgba(0,0,0,0.3)]">
                 <tr>
                   <td className="px-8 py-8 text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Total Score</td>
-                  {players.map((p) => (
-                    <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
-                      {p.turns.reduce((sum, t) => sum + (t?.points || 0), 0)}
-                    </td>
-                  ))}
+                  {players.map((p) => {
+                    const grandTotal = p.turns.reduce((sum, turn) => 
+                      sum + (turn?.plays.reduce((s, play) => s + play.points, 0) || 0), 0
+                    );
+                    return (
+                      <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
+                        {grandTotal}
+                      </td>
+                    );
+                  })}
                 </tr>
               </tfoot>
             </table>
           </div>
         </div>
       </main>
-      
-      {/* Footer Mobile Logo Button */}
-      <div className="fixed bottom-6 right-6 lg:hidden">
-        <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 to-orange-600 rounded-full blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
-          <button className="relative bg-[#0c1a26] text-white p-4 rounded-full shadow-2xl border-2 border-amber-500/50 flex items-center justify-center">
-            <Dices size={32} className="text-amber-500" />
-          </button>
-        </div>
-      </div>
       
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
