@@ -2,6 +2,9 @@
 export interface Play {
   word: string;
   points: number;
+  isEdited?: boolean;
+  isBingo?: boolean;
+  isRemoved?: boolean;
 }
 
 export interface Turn {

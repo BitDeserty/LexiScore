@@ -14,7 +14,11 @@ import {
   Gamepad2, 
   ClipboardList,
   Hash,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  Zap,
+  Type,
+  Undo2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
@@ -36,6 +40,17 @@ const App: React.FC = () => {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   
+  // Word Action State
+  const [selectedPlayRef, setSelectedPlayRef] = useState<{ 
+    playerId: string, 
+    roundIdx: number, 
+    playIdx: number,
+    play: Play
+  } | null>(null);
+  const [isEditInputActive, setIsEditInputActive] = useState(false);
+  const [editWordValue, setEditWordValue] = useState('');
+  const [editPointsValue, setEditPointsValue] = useState('');
+
   // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
@@ -53,7 +68,7 @@ const App: React.FC = () => {
     player.turns.forEach(turn => {
       if (turn) {
         turn.plays.forEach(play => {
-          if (play.word !== '—') {
+          if (play.word !== '—' && !play.isRemoved) {
             totalScore += play.points;
             allPlays.push(play);
           }
@@ -70,14 +85,14 @@ const App: React.FC = () => {
     return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
-  // Leaderboard sorting logic - sorts by total score descending
+  // Leaderboard sorting logic
   const rankedPlayers = useMemo(() => {
     return [...players].sort((a, b) => {
       const statsA = getPlayerStats(a);
       const statsB = getPlayerStats(b);
       return statsB.totalScore - statsA.totalScore;
     });
-  }, [players, getPlayerStats, gameRound]); // Re-sort when players change or round finishes
+  }, [players, getPlayerStats, gameRound]);
 
   const handleResetRequest = useCallback(() => {
     if (isGameStarted) {
@@ -132,6 +147,91 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
   };
 
+  const handlePlayClick = (playerId: string, roundIdx: number, playIdx: number, play: Play) => {
+    if (play.word === '—' || play.isRemoved) return;
+    setSelectedPlayRef({ playerId, roundIdx, playIdx, play });
+    setEditWordValue(play.word);
+    setEditPointsValue(play.points.toString());
+    setIsEditInputActive(false);
+  };
+
+  const handleRemoveWord = () => {
+    if (!selectedPlayRef) return;
+    const { playerId, roundIdx, playIdx } = selectedPlayRef;
+    
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== playerId) return p;
+      const newTurns = [...p.turns];
+      const turn = { ...newTurns[roundIdx] };
+      const newPlays = [...turn.plays];
+      
+      // Instead of splicing, mark as removed to allow undo
+      newPlays[playIdx] = { ...newPlays[playIdx], isRemoved: true };
+      
+      newTurns[roundIdx] = { ...turn, plays: newPlays };
+      return { ...p, turns: newTurns };
+    }));
+    setSelectedPlayRef(null);
+  };
+
+  const handleUndoRemove = (playerId: string, roundIdx: number, playIdx: number) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== playerId) return p;
+      const newTurns = [...p.turns];
+      const turn = { ...newTurns[roundIdx] };
+      const newPlays = [...turn.plays];
+      newPlays[playIdx] = { ...newPlays[playIdx], isRemoved: false };
+      newTurns[roundIdx] = { ...turn, plays: newPlays };
+      return { ...p, turns: newTurns };
+    }));
+  };
+
+  const handleEditWord = () => {
+    if (!selectedPlayRef || !editWordValue.trim()) return;
+    const { playerId, roundIdx, playIdx } = selectedPlayRef;
+    const newPoints = parseInt(editPointsValue) || 0;
+
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== playerId) return p;
+      const newTurns = [...p.turns];
+      const turn = { ...newTurns[roundIdx] };
+      const newPlays = [...turn.plays];
+      newPlays[playIdx] = { 
+        ...newPlays[playIdx], 
+        word: editWordValue.trim().toUpperCase(), 
+        points: newPoints,
+        isEdited: true 
+      };
+      newTurns[roundIdx] = { ...turn, plays: newPlays };
+      return { ...p, turns: newTurns };
+    }));
+    setSelectedPlayRef(null);
+  };
+
+  const handleBingoWord = () => {
+    if (!selectedPlayRef) return;
+    const { playerId, roundIdx, playIdx } = selectedPlayRef;
+
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== playerId) return p;
+      const newTurns = [...p.turns];
+      const turn = { ...newTurns[roundIdx] };
+      const newPlays = [...turn.plays];
+      
+      // Toggle bingo
+      const currentBingo = !!newPlays[playIdx].isBingo;
+      newPlays[playIdx] = { 
+        ...newPlays[playIdx], 
+        points: currentBingo ? newPlays[playIdx].points - 50 : newPlays[playIdx].points + 50,
+        isBingo: !currentBingo 
+      };
+      
+      newTurns[roundIdx] = { ...turn, plays: newPlays };
+      return { ...p, turns: newTurns };
+    }));
+    setSelectedPlayRef(null);
+  };
+
   useEffect(() => {
     if (editingPlayerId && editInputRef.current) {
       editInputRef.current.select();
@@ -154,9 +254,11 @@ const App: React.FC = () => {
       const newTurns = [...player.turns];
       
       if (newTurns[roundIdx]) {
+        // If current round was a "Skip" (---), replace it with the new word
+        const filteredPlays = newTurns[roundIdx].plays.filter(p => p.word !== '—');
         newTurns[roundIdx] = {
           ...newTurns[roundIdx],
-          plays: [...newTurns[roundIdx].plays, newPlay]
+          plays: [...filteredPlays, newPlay]
         };
       } else {
         newTurns[roundIdx] = {
@@ -224,6 +326,109 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-stone-100 pb-12">
+      {/* Word Management Modal */}
+      <AnimatePresence>
+        {selectedPlayRef && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-stone-900/70 backdrop-blur-sm" 
+              onClick={() => setSelectedPlayRef(null)}
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="bg-amber-500 p-6 text-stone-900 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest opacity-80">Word Options</h3>
+                  <p className="text-3xl font-bold scrabble-font">{selectedPlayRef.play.word}</p>
+                </div>
+                <button onClick={() => setSelectedPlayRef(null)} className="p-2 hover:bg-amber-600 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-8">
+                {isEditInputActive ? (
+                  <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Word</label>
+                      <input 
+                        type="text" 
+                        value={editWordValue}
+                        onChange={(e) => setEditWordValue(e.target.value.toUpperCase())}
+                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Points</label>
+                      <input 
+                        type="number" 
+                        value={editPointsValue}
+                        onChange={(e) => setEditPointsValue(e.target.value)}
+                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button onClick={handleEditWord} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Save Changes</button>
+                      <button onClick={() => setIsEditInputActive(false)} className="flex-1 bg-stone-100 text-stone-500 py-3 rounded-xl font-bold hover:bg-stone-200 transition-all">Back</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    <button 
+                      onClick={() => setIsEditInputActive(true)}
+                      className="flex items-center gap-4 p-5 bg-stone-50 hover:bg-stone-100 rounded-2xl border border-stone-200 transition-all active:scale-95 text-left"
+                    >
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                        <Type size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Edit Word</p>
+                        <p className="text-sm text-stone-500">Correct spelling or point value</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={handleBingoWord}
+                      className={`flex items-center gap-4 p-5 rounded-2xl border transition-all active:scale-95 text-left ${selectedPlayRef.play.isBingo ? 'bg-amber-100 border-amber-300' : 'bg-stone-50 border-stone-200 hover:bg-stone-100'}`}
+                    >
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${selectedPlayRef.play.isBingo ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}>
+                        <Zap size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Bingo Word</p>
+                        <p className="text-sm text-stone-500">
+                          {selectedPlayRef.play.isBingo ? 'Remove 50pt bonus' : 'Add 50pt bonus'}
+                        </p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={handleRemoveWord}
+                      className="flex items-center gap-4 p-5 bg-red-50 hover:bg-red-100 rounded-2xl border border-red-100 transition-all active:scale-95 text-left"
+                    >
+                      <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                        <Trash2 size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-red-800 uppercase text-xs tracking-wider">Remove Word</p>
+                        <p className="text-sm text-red-400">Mark word as removed</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Reset Confirmation Modal */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -522,24 +727,58 @@ const App: React.FC = () => {
                     <td className="px-8 py-5 text-sm font-black text-stone-400">{roundIdx + 1}</td>
                     {players.map((p, playerIdx) => {
                       const turn = p.turns[roundIdx];
-                      const roundTotal = turn ? turn.plays.reduce((sum, play) => sum + play.points, 0) : 0;
+                      const roundTotal = turn ? turn.plays.reduce((sum, play) => play.isRemoved ? sum : sum + play.points, 0) : 0;
                       
                       return (
                         <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 ${playerIdx === currentPlayerIndex && roundIdx === gameRound - 1 ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
                           {turn ? (
                             <div className="flex flex-col gap-2">
-                              {turn.plays.map((play, playIdx) => (
-                                <div key={playIdx} className="flex items-center justify-between gap-4 group/play animate-in fade-in slide-in-from-left-2 duration-300">
-                                  <span className={`text-base font-bold leading-tight break-words max-w-[150px] uppercase tracking-wide ${play.word === '—' ? 'text-stone-300 italic font-normal' : 'text-stone-800'}`}>
-                                    {play.word}
-                                  </span>
-                                  <span className="text-[10px] font-black bg-stone-100 px-2 py-0.5 rounded-lg text-stone-600 shrink-0 border border-stone-200 shadow-sm group-hover/play:bg-stone-200 transition-colors">
-                                    {play.points}
-                                  </span>
-                                </div>
-                              ))}
+                              {turn.plays.map((play, playIdx) => {
+                                if (play.isRemoved) {
+                                  return (
+                                    <button 
+                                      key={playIdx}
+                                      onClick={() => handleUndoRemove(p.id, roundIdx, playIdx)}
+                                      className="flex items-center justify-between w-full text-left p-1 -m-1 rounded-lg bg-stone-50 border border-stone-100 hover:bg-stone-100 transition-all group/undo animate-in fade-in duration-300"
+                                      title="Click to restore word"
+                                    >
+                                      <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter flex items-center gap-1.5 italic">
+                                        <Trash2 size={10} className="opacity-50" /> Word Removed
+                                      </span>
+                                      <span className="text-[9px] font-black bg-stone-200 px-1.5 py-0.5 rounded text-stone-600 group-hover/undo:bg-amber-500 group-hover/undo:text-white transition-colors flex items-center gap-1">
+                                        <Undo2 size={10} /> Undo
+                                      </span>
+                                    </button>
+                                  );
+                                }
+                                
+                                return (
+                                  <button 
+                                    key={playIdx} 
+                                    onClick={() => handlePlayClick(p.id, roundIdx, playIdx, play)}
+                                    className={`flex items-center justify-between w-full text-left p-1 -m-1 rounded-lg hover:bg-stone-100/80 transition-all group/play animate-in fade-in slide-in-from-left-2 duration-300 ${play.word === '—' ? 'cursor-default pointer-events-none' : 'cursor-pointer'}`}
+                                  >
+                                    <span className={`text-base leading-tight break-words max-w-[150px] uppercase tracking-wide transition-all ${
+                                      play.word === '—' 
+                                        ? 'text-stone-300 italic font-normal' 
+                                        : play.isBingo 
+                                          ? 'text-amber-700 font-black scale-105 origin-left' 
+                                          : 'text-stone-800 font-bold'
+                                    }`}>
+                                      {play.word}{play.isEdited ? '*' : ''}
+                                    </span>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 border shadow-sm transition-all ${
+                                      play.isBingo 
+                                        ? 'bg-amber-600 text-white border-amber-500' 
+                                        : 'bg-stone-100 text-stone-600 border-stone-200 group-hover/play:bg-stone-200'
+                                    }`}>
+                                      {play.points}
+                                    </span>
+                                  </button>
+                                );
+                              })}
                               
-                              {turn.plays.length > 1 && (
+                              {turn.plays.filter(pl => !pl.isRemoved).length > 1 && (
                                 <div className="mt-1 pt-1 border-t border-amber-100 flex justify-end">
                                   <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-200">
                                     <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter">TOTAL</span>
