@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   RotateCcw, 
   Send, 
@@ -13,7 +13,8 @@ import {
   Trophy, 
   Gamepad2, 
   ClipboardList,
-  Hash
+  Hash,
+  AlertTriangle
 } from 'lucide-react';
 import { Player, Turn, PlayerStats, Play } from './types';
 import StatsCard from './components/StatsCard';
@@ -30,25 +31,32 @@ const App: React.FC = () => {
   const [pointsInput, setPointsInput] = useState('');
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoadingDef, setIsLoadingDef] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   
   // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const isGameStarted = useMemo(() => 
     players.some(p => p.turns.length > 0),
   [players]);
 
-  const startNewGame = useCallback(() => {
-    if (confirm("Are you sure? This will reset the current game and all scores will be lost.")) {
-      setPlayers(prev => prev.map(p => ({ ...p, turns: [] })));
-      setCurrentPlayerIndex(0);
-      setGameRound(1);
-      setWordInput('');
-      setPointsInput('');
-      setDefinition(null);
-      setEditingPlayerId(null);
+  const handleResetRequest = useCallback(() => {
+    if (isGameStarted) {
+      setIsResetModalOpen(true);
     }
+  }, [isGameStarted]);
+
+  const performReset = useCallback(() => {
+    setPlayers(prev => prev.map(p => ({ ...p, turns: [] })));
+    setCurrentPlayerIndex(0);
+    setGameRound(1);
+    setWordInput('');
+    setPointsInput('');
+    setDefinition(null);
+    setEditingPlayerId(null);
+    setIsResetModalOpen(false);
   }, []);
 
   const addPlayer = useCallback(() => {
@@ -66,6 +74,12 @@ const App: React.FC = () => {
   const startEditingName = (player: Player) => {
     setEditingPlayerId(player.id);
     setEditNameValue(player.name);
+    // If the player we are editing isn't the current player, 
+    // we should switch to them so the edit input appears in the sidebar
+    const index = players.findIndex(p => p.id === player.id);
+    if (index !== -1 && index !== currentPlayerIndex) {
+      setCurrentPlayerIndex(index);
+    }
   };
 
   const savePlayerName = () => {
@@ -82,6 +96,13 @@ const App: React.FC = () => {
   const cancelEditingName = () => {
     setEditingPlayerId(null);
   };
+
+  // Automatically select text when editing starts
+  useEffect(() => {
+    if (editingPlayerId && editInputRef.current) {
+      editInputRef.current.select();
+    }
+  }, [editingPlayerId]);
 
   const submitWord = useCallback(() => {
     const points = parseInt(pointsInput);
@@ -194,6 +215,41 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-stone-100 pb-12">
+      {/* Reset Confirmation Modal */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsResetModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle className="text-amber-600" size={32} />
+              </div>
+              <h3 className="text-3xl font-bold scrabble-font text-stone-900 mb-3">Reset Game?</h3>
+              <p className="text-stone-500 leading-relaxed mb-8">
+                Are you sure you want to clear all scores? This action will permanently erase the current game progress and cannot be undone.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => setIsResetModalOpen(false)}
+                  className="flex-1 px-6 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-2xl font-bold transition-all active:scale-95"
+                >
+                  No, Keep Playing
+                </button>
+                <button
+                  onClick={performReset}
+                  className="flex-1 px-6 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-200 transition-all active:scale-95"
+                >
+                  Yes, Reset All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-[#0c1a26] text-white shadow-2xl py-6 sticky top-0 z-50 border-b-4 border-amber-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
@@ -209,7 +265,7 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-4">
             <button
-              onClick={startNewGame}
+              onClick={handleResetRequest}
               disabled={!isGameStarted}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border font-semibold ${
                 isGameStarted 
@@ -256,6 +312,7 @@ const App: React.FC = () => {
                 {editingPlayerId === currentPlayer.id ? (
                   <div className="w-full flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-200">
                     <input
+                      ref={editInputRef}
                       autoFocus
                       type="text"
                       value={editNameValue}
