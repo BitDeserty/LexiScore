@@ -9,7 +9,7 @@ export async function defineWord(word: string) {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Define the word "${word}" in the context of Scrabble. Is it likely valid? Keep it brief (max 30 words).`,
+      contents: `Define the word "${word}" in the context of Scrabble using Merriam Dictionary. Keep it brief (max 30 words). Output VALID or INVALID followed by the definition.`,
       config: {
         temperature: 0.5,
         maxOutputTokens: 100,

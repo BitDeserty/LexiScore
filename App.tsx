@@ -16,9 +16,11 @@ import {
   Hash,
   AlertTriangle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
 import StatsCard from './components/StatsCard';
 import { defineWord } from './services/geminiService';
+import { ENABLE_AI_INSIGHT } from './config';
 
 const App: React.FC = () => {
   const [players, setPlayers] = useState<Player[]>([
@@ -42,6 +44,40 @@ const App: React.FC = () => {
   const isGameStarted = useMemo(() => 
     players.some(p => p.turns.length > 0),
   [players]);
+
+  // Helper to calculate score for any player
+  const getPlayerStats = useCallback((player: Player): PlayerStats => {
+    let totalScore = 0;
+    let allPlays: Play[] = [];
+    
+    player.turns.forEach(turn => {
+      if (turn) {
+        turn.plays.forEach(play => {
+          if (play.word !== '—') {
+            totalScore += play.points;
+            allPlays.push(play);
+          }
+        });
+      }
+    });
+
+    const wordCount = allPlays.length;
+    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
+    const highestWord = allPlays.length > 0 
+      ? [...allPlays].sort((a, b) => b.points - a.points)[0]
+      : null;
+
+    return { totalScore, averagePoints, highestWord, wordCount };
+  }, []);
+
+  // Leaderboard sorting logic - sorts by total score descending
+  const rankedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => {
+      const statsA = getPlayerStats(a);
+      const statsB = getPlayerStats(b);
+      return statsB.totalScore - statsA.totalScore;
+    });
+  }, [players, getPlayerStats, gameRound]); // Re-sort when players change or round finishes
 
   const handleResetRequest = useCallback(() => {
     if (isGameStarted) {
@@ -75,8 +111,6 @@ const App: React.FC = () => {
   const startEditingName = (player: Player) => {
     setEditingPlayerId(player.id);
     setEditNameValue(player.name);
-    // If the player we are editing isn't the current player, 
-    // we should switch to them so the edit input appears in the sidebar
     const index = players.findIndex(p => p.id === player.id);
     if (index !== -1 && index !== currentPlayerIndex) {
       setCurrentPlayerIndex(index);
@@ -98,7 +132,6 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
   };
 
-  // Automatically select text when editing starts
   useEffect(() => {
     if (editingPlayerId && editInputRef.current) {
       editInputRef.current.select();
@@ -121,13 +154,11 @@ const App: React.FC = () => {
       const newTurns = [...player.turns];
       
       if (newTurns[roundIdx]) {
-        // Add to existing round
         newTurns[roundIdx] = {
           ...newTurns[roundIdx],
           plays: [...newTurns[roundIdx].plays, newPlay]
         };
       } else {
-        // Start new round entry
         newTurns[roundIdx] = {
           plays: [newPlay],
           timestamp: Date.now()
@@ -148,7 +179,6 @@ const App: React.FC = () => {
     const roundIdx = gameRound - 1;
     
     setPlayers(prev => {
-      // If player played nothing this round, mark as skipped
       if (prev[currentPlayerIndex].turns[roundIdx]) return prev;
       
       const updated = [...prev];
@@ -174,31 +204,9 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
   }, [players.length, currentPlayerIndex, gameRound]);
 
-  const getPlayerStats = useCallback((player: Player): PlayerStats => {
-    let totalScore = 0;
-    let allPlays: Play[] = [];
-    
-    player.turns.forEach(turn => {
-      if (turn) {
-        turn.plays.forEach(play => {
-          if (play.word !== '—') {
-            totalScore += play.points;
-            allPlays.push(play);
-          }
-        });
-      }
-    });
-
-    const wordCount = allPlays.length;
-    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
-    const highestWord = allPlays.length > 0 
-      ? [...allPlays].sort((a, b) => b.points - a.points)[0]
-      : null;
-
-    return { totalScore, averagePoints, highestWord, wordCount };
-  }, []);
-
   useEffect(() => {
+    if (!ENABLE_AI_INSIGHT) return;
+    
     const timer = setTimeout(async () => {
       if (wordInput.length >= 3) {
         setIsLoadingDef(true);
@@ -269,7 +277,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold tracking-tight scrabble-font leading-none text-white drop-shadow-md">LexiScore</h1>
-              <p className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mt-2 opacity-100">BitDeserty Studios</p>
+              <p className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mt-2 opacity-100">By BitDeserty Studios</p>
             </div>
           </div>
           
@@ -304,7 +312,7 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Input & Stats */}
+        {/* Left Column: Input & Animated Leaderboard */}
         <div className="lg:col-span-4 space-y-6">
           {/* Active Player Status */}
           <div className="bg-white rounded-3xl shadow-lg border border-stone-200 overflow-hidden">
@@ -410,7 +418,7 @@ const App: React.FC = () => {
               </div>
 
               {/* AI Insight */}
-              {(definition || isLoadingDef) && (
+              {ENABLE_AI_INSIGHT && (definition || isLoadingDef) && (
                 <div className="mt-8 p-5 bg-stone-50 rounded-2xl border border-amber-200/50 flex gap-4 animate-in slide-in-from-bottom-2 duration-500 shadow-sm">
                   <div className="bg-amber-100 p-2 rounded-lg h-fit shrink-0">
                     <Info className="text-amber-700" size={20} />
@@ -432,17 +440,31 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Player Quick Stats */}
+          {/* Animated Leaderboard */}
           <div className="space-y-4">
             <h2 className="text-xs font-black text-stone-500 uppercase tracking-[0.3em] px-2">Leaderboard</h2>
-            {players.map((p, idx) => (
-              <StatsCard
-                key={p.id}
-                name={p.name}
-                stats={getPlayerStats(p)}
-                isActive={idx === currentPlayerIndex}
-              />
-            ))}
+            <div className="flex flex-col gap-4">
+              <AnimatePresence mode="popLayout">
+                {rankedPlayers.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    layout
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 30,
+                      mass: 1
+                    }}
+                  >
+                    <StatsCard
+                      name={p.name}
+                      stats={getPlayerStats(p)}
+                      isActive={p.id === currentPlayer.id}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -554,12 +576,10 @@ const App: React.FC = () => {
                 <tr>
                   <td className="px-8 py-8 text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Total Score</td>
                   {players.map((p) => {
-                    const grandTotal = p.turns.reduce((sum, turn) => 
-                      sum + (turn?.plays.reduce((s, play) => s + play.points, 0) || 0), 0
-                    );
+                    const stats = getPlayerStats(p);
                     return (
                       <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
-                        {grandTotal}
+                        {stats.totalScore}
                       </td>
                     );
                   })}
