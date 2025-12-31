@@ -29,6 +29,8 @@ import StatsCard from './components/StatsCard';
 import { defineWord } from './services/geminiService';
 import { WORD_CHECKER } from './config';
 
+const STORAGE_KEY = 'lexiscore_game_state_v1';
+
 // Confetti particle component
 const ConfettiParticle: React.FC<{ x: number; y: number; color: string }> = ({ x, y, color }) => {
   const angle = Math.random() * Math.PI * 2;
@@ -65,14 +67,40 @@ const ConfettiParticle: React.FC<{ x: number; y: number; color: string }> = ({ x
 };
 
 const App: React.FC = () => {
-  const [players, setPlayers] = useState<Player[]>([
-    { id: '1', name: 'Player 1', turns: [] },
-    { id: '2', name: 'Player 2', turns: [] }
-  ]);
+  // Load initial state from local storage if available
+  const getInitialState = () => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved game state", e);
+      }
+    }
+    return null;
+  };
+
+  const initialState = getInitialState();
+
+  const [players, setPlayers] = useState<Player[]>(
+    initialState?.players || [
+      { id: '1', name: 'Player 1', turns: [] },
+      { id: '2', name: 'Player 2', turns: [] }
+    ]
+  );
   
-  const [displayPlayers, setDisplayPlayers] = useState<Player[]>([...players]);
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [gameRound, setGameRound] = useState(1);
+  const [displayPlayers, setDisplayPlayers] = useState<Player[]>(
+    initialState?.players || [...players]
+  );
+
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(
+    initialState?.currentPlayerIndex ?? 0
+  );
+
+  const [gameRound, setGameRound] = useState(
+    initialState?.gameRound ?? 1
+  );
+
   const [wordInput, setWordInput] = useState('');
   const [pointsInput, setPointsInput] = useState('');
   const [definition, setDefinition] = useState<string | null>(null);
@@ -103,6 +131,16 @@ const App: React.FC = () => {
   const [editNameValue, setEditNameValue] = useState('');
 
   const MotionDiv = motion.div as any;
+
+  // Persist state to local storage on change
+  useEffect(() => {
+    const stateToSave = {
+      players,
+      currentPlayerIndex,
+      gameRound
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+  }, [players, currentPlayerIndex, gameRound]);
 
   // Load enable1.txt on init
   useEffect(() => {
