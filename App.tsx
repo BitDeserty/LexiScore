@@ -19,7 +19,9 @@ import {
   Zap,
   Type,
   Undo2,
-  Plus
+  Plus,
+  Loader2,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
@@ -28,7 +30,7 @@ import { defineWord } from './services/geminiService';
 import { WORD_CHECKER } from './config';
 
 // Confetti particle component
-const ConfettiParticle = ({ x, y, color }: { x: number; y: number; color: string }) => {
+const ConfettiParticle: React.FC<{ x: number; y: number; color: string }> = ({ x, y, color }) => {
   const angle = Math.random() * Math.PI * 2;
   const velocity = 5 + Math.random() * 10;
   const tx = Math.cos(angle) * velocity * 15;
@@ -68,9 +70,7 @@ const App: React.FC = () => {
     { id: '2', name: 'Player 2', turns: [] }
   ]);
   
-  // New state to manage when the leaderboard actually visually updates
   const [displayPlayers, setDisplayPlayers] = useState<Player[]>([...players]);
-  
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [gameRound, setGameRound] = useState(1);
   const [wordInput, setWordInput] = useState('');
@@ -81,14 +81,13 @@ const App: React.FC = () => {
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   
-  // Local word list for verification
+  // Local word list states
   const [wordList, setWordList] = useState<Set<string>>(new Set());
+  const [wordListStatus, setWordListStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   
-  // Refs for focusing and scrolling
   const standingsRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  // Word Action State
   const [selectedPlayRef, setSelectedPlayRef] = useState<{ 
     playerId: string, 
     roundIdx: number, 
@@ -99,11 +98,7 @@ const App: React.FC = () => {
   const [isEditInputActive, setIsEditInputActive] = useState(false);
   const [editWordValue, setEditWordValue] = useState('');
   const [editPointsValue, setEditPointsValue] = useState('');
-  
-  // Celebration State
   const [confetti, setConfetti] = useState<{ x: number, y: number, id: number } | null>(null);
-
-  // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
 
@@ -112,20 +107,44 @@ const App: React.FC = () => {
   // Load enable1.txt on init
   useEffect(() => {
     if (WORD_CHECKER === 'LOCAL') {
-      fetch('./enable1.txt')
-        .then(res => res.text())
-        .then(text => {
-          const words = text.split(/\r?\n/).map(w => w.trim().toUpperCase());
+      setWordListStatus('loading');
+      fetch('enable1.txt')
+        .then(async response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status} at ${response.url}`);
+          }
+          const text = await response.text();
+          const words = text.split(/\r?\n/).map(w => w.trim().toUpperCase()).filter(w => w.length > 0);
           setWordList(new Set(words));
+          setWordListStatus('loaded');
         })
-        .catch(err => console.error("Failed to load local word list:", err));
+        .catch(err => {
+          console.error("Failed to load local word list.", err);
+          setWordListStatus('error');
+        });
     }
   }, []);
 
-  const isWordLegal = useMemo(() => {
-    if (WORD_CHECKER !== 'LOCAL' || wordInput.length < 2) return null;
-    return wordList.has(wordInput.toUpperCase());
-  }, [wordInput, wordList]);
+  // Unified legality status computed property
+  const legalityStatus = useMemo(() => {
+    const trimmedInput = wordInput.trim().toUpperCase();
+    if (trimmedInput.length < 2) return 'none';
+
+    if (WORD_CHECKER === 'LOCAL') {
+      if (wordListStatus === 'loading') return 'loading';
+      return wordList.has(trimmedInput) ? 'legal' : 'illegal';
+    }
+
+    if (WORD_CHECKER === 'AI') {
+      if (isLoadingDef) return 'loading';
+      if (!definition) return 'none';
+      const aiVerdict = definition.trim().toUpperCase();
+      if (aiVerdict.startsWith('VALID')) return 'legal';
+      if (aiVerdict.startsWith('INVALID')) return 'illegal';
+    }
+
+    return 'none';
+  }, [wordInput, wordList, wordListStatus, isLoadingDef, definition]);
 
   const isGameStarted = useMemo(() => 
     players.some(p => p.turns.length > 0),
@@ -155,7 +174,6 @@ const App: React.FC = () => {
     return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
-  // Use displayPlayers for the visual leaderboard
   const rankedPlayers = useMemo(() => {
     return [...displayPlayers].sort((a, b) => {
       const statsA = getPlayerStats(a);
@@ -208,7 +226,6 @@ const App: React.FC = () => {
 
   const savePlayerName = () => {
     if (!editingPlayerId) return;
-    
     const trimmed = editNameValue.trim();
     if (trimmed) {
       const updated = players.map(p => 
@@ -236,7 +253,6 @@ const App: React.FC = () => {
   const handleRemoveWord = () => {
     if (!selectedPlayRef) return;
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
-    
     const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
@@ -247,7 +263,6 @@ const App: React.FC = () => {
       return { ...p, turns: newTurns };
     });
     setPlayers(updated);
-    // Sync for historical word edits (not turn additions)
     setDisplayPlayers([...updated]);
     setSelectedPlayRef(null);
   };
@@ -270,7 +285,6 @@ const App: React.FC = () => {
     if (!selectedPlayRef || !editWordValue.trim()) return;
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
     const newPoints = parseInt(editPointsValue) || 0;
-
     const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
@@ -293,30 +307,24 @@ const App: React.FC = () => {
   const handleBingoWord = () => {
     if (!selectedPlayRef) return;
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
-
     const currentBingo = !!selectedPlayRef.play.isBingo;
     const becomingBingo = !currentBingo;
-
     const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
       const newPlays = [...turn.plays];
-      
       newPlays[playIdx] = { 
         ...newPlays[playIdx], 
         points: currentBingo ? newPlays[playIdx].points - 50 : newPlays[playIdx].points + 50,
         isBingo: becomingBingo
       };
-      
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
     });
-    
     setPlayers(updated);
     setDisplayPlayers([...updated]);
     setSelectedPlayRef(null);
-
     if (becomingBingo && clickCoords) {
       setTimeout(() => {
         setConfetti({ x: clickCoords.x, y: clickCoords.y, id: Date.now() });
@@ -332,21 +340,26 @@ const App: React.FC = () => {
     }
   }, [editingPlayerId]);
 
+  const handleVerifyWord = async () => {
+    if (wordInput.trim().length < 2) return;
+    setIsLoadingDef(true);
+    const res = await defineWord(wordInput);
+    setDefinition(res);
+    setIsLoadingDef(false);
+  };
+
   const submitWord = useCallback(() => {
     const points = parseInt(pointsInput);
     if (!wordInput.trim() || isNaN(points)) return;
-
     const roundIdx = gameRound - 1;
     const newPlay: Play = { 
       word: wordInput.trim().toUpperCase(), 
       points 
     };
-
     setPlayers(prev => {
       const updated = [...prev];
       const player = { ...updated[currentPlayerIndex] };
       const newTurns = [...player.turns];
-      
       if (newTurns[roundIdx]) {
         const filteredPlays = newTurns[roundIdx].plays.filter(p => p.word !== '—');
         newTurns[roundIdx] = {
@@ -359,12 +372,10 @@ const App: React.FC = () => {
           timestamp: Date.now()
         };
       }
-      
       player.turns = newTurns;
       updated[currentPlayerIndex] = player;
       return updated;
     });
-
     setWordInput('');
     setPointsInput('');
     setDefinition(null);
@@ -372,11 +383,8 @@ const App: React.FC = () => {
 
   const endTurn = useCallback(() => {
     const roundIdx = gameRound - 1;
-    
-    // 1. Ensure the turn has data
     setPlayers(prev => {
       if (prev[currentPlayerIndex].turns[roundIdx]) return prev;
-      
       const updated = [...prev];
       const player = { ...updated[currentPlayerIndex] };
       const newTurns = [...player.turns];
@@ -388,54 +396,27 @@ const App: React.FC = () => {
       updated[currentPlayerIndex] = player;
       return updated;
     });
-
-    // 2. Start the focus sequence
     setIsInputModalOpen(false);
-
-    // Use setTimeout to wait for the modal closing animation to finish
     setTimeout(() => {
-      // 3. Scroll to Standings to focus the user
       if (standingsRef.current) {
         standingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-
-      // 4. Delay slightly more before the visual leaderboard "swap"
       setTimeout(() => {
         setPlayers(current => {
-          setDisplayPlayers([...current]); // Sync the visual leaderboard with reality
+          setDisplayPlayers([...current]);
           return current;
         });
-        
-        // 5. Update round and player index
         if (currentPlayerIndex === players.length - 1) {
           setGameRound(prev => prev + 1);
         }
         setCurrentPlayerIndex(prev => (prev + 1) % players.length);
-        
-      }, 400); // Wait for scroll to stabilize
-    }, 300); // Wait for modal exit
-
+      }, 400);
+    }, 300);
     setWordInput('');
     setPointsInput('');
     setDefinition(null);
     setEditingPlayerId(null);
   }, [players.length, currentPlayerIndex, gameRound]);
-
-  useEffect(() => {
-    if (WORD_CHECKER !== 'AI') return;
-    
-    const timer = setTimeout(async () => {
-      if (wordInput.length >= 3) {
-        setIsLoadingDef(true);
-        const def = await defineWord(wordInput);
-        setDefinition(def);
-        setIsLoadingDef(false);
-      } else {
-        setDefinition(null);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [wordInput]);
 
   const currentPlayer = players[currentPlayerIndex];
   const currentRoundPlays = currentPlayer.turns[gameRound - 1]?.plays || [];
@@ -444,7 +425,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-stone-100 pb-12">
-      {/* Confetti Celebration */}
       {confetti && (
         <div className="fixed inset-0 pointer-events-none z-[200]">
           {Array.from({ length: 40 }).map((_, i) => (
@@ -578,7 +558,6 @@ const App: React.FC = () => {
               exit={{ y: 50, opacity: 0, scale: 0.95 }}
               className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
             >
-              {/* Header */}
               <div className="bg-[#0c1a26] p-8 text-white relative">
                 <div className="absolute top-4 right-4">
                   <button onClick={() => setIsInputModalOpen(false)} className="p-2 text-stone-400 hover:text-white transition-colors">
@@ -597,7 +576,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Round Summary */}
               <div className="bg-amber-50/80 p-6 border-b border-amber-100">
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Turn Summary</h4>
@@ -623,34 +601,66 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Input Section */}
               <div className="p-8 space-y-6 flex-grow overflow-y-auto">
                 <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center ml-1">
                       <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em]">Word Played</label>
-                      {WORD_CHECKER === 'LOCAL' && wordInput.length >= 2 && (
-                        <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${isWordLegal ? 'text-green-600' : 'text-red-500'}`}>
-                          {isWordLegal ? <Check size={12} /> : <X size={12} />}
-                          {isWordLegal ? 'Legal' : 'Not Legal'}
+                      
+                      {/* Unified Legality & Verification Area */}
+                      {WORD_CHECKER !== 'NONE' && wordInput.trim().length >= 2 && (
+                        <div className="flex items-center gap-2">
+                          {legalityStatus === 'none' && !isLoadingDef ? (
+                            <button
+                              onClick={handleVerifyWord}
+                              className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg border border-amber-300 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                            >
+                              <Search size={12} />
+                              Verify Word
+                            </button>
+                          ) : (
+                            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ${
+                              legalityStatus === 'loading' ? 'text-amber-500' : 
+                              legalityStatus === 'legal' ? 'text-green-600' : 
+                              legalityStatus === 'illegal' ? 'text-red-500' : 'text-stone-400'
+                            }`}>
+                              {legalityStatus === 'loading' ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : legalityStatus === 'legal' ? (
+                                <Check size={12} />
+                              ) : (
+                                <X size={12} />
+                              )}
+                              {legalityStatus === 'loading' ? 'Verifying...' : 
+                               legalityStatus === 'legal' ? 'Legal' : 
+                               legalityStatus === 'illegal' ? 'Not Legal' : ''}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+                    
                     <input
                       autoFocus
                       type="text"
                       value={wordInput}
-                      onChange={(e) => setWordInput(e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        setWordInput(e.target.value.toUpperCase());
+                        if (WORD_CHECKER === 'AI') setDefinition(null); // Reset result on change
+                      }}
                       onKeyDown={(e) => e.key === 'Enter' && submitWord()}
                       placeholder="e.g. LEXICON"
                       className={`w-full bg-stone-50 border-2 rounded-2xl px-5 py-4 text-xl font-bold tracking-widest focus:ring-4 transition-all outline-none ${
-                        WORD_CHECKER === 'LOCAL' && wordInput.length >= 2
-                          ? isWordLegal 
-                            ? 'border-green-200 focus:ring-green-500/10 focus:border-green-500' 
-                            : 'border-red-200 focus:ring-red-500/10 focus:border-red-500'
-                          : 'border-stone-200 focus:ring-amber-500/10 focus:border-amber-500'
+                        legalityStatus === 'legal' 
+                          ? 'border-green-200 focus:ring-green-500/10 focus:border-green-500' 
+                          : legalityStatus === 'illegal'
+                            ? 'border-red-200 focus:ring-red-500/10 focus:border-red-500'
+                            : 'border-stone-200 focus:ring-amber-500/10 focus:border-amber-500'
                       }`}
                     />
+                    {wordListStatus === 'error' && WORD_CHECKER === 'LOCAL' && (
+                      <p className="text-[10px] text-red-400 italic">Error loading dictionary. Check console.</p>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -679,14 +689,15 @@ const App: React.FC = () => {
                           <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce delay-100"></div>
                         </div>
                       ) : (
-                        <p className="text-sm text-stone-700 italic leading-relaxed">"{definition}"</p>
+                        <p className="text-sm text-stone-700 italic leading-relaxed">
+                          {definition.replace(/^(VALID|INVALID)\s*:\s*/i, '')}
+                        </p>
                       )}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons */}
               <div className="p-8 bg-stone-50 border-t border-stone-100 flex gap-4">
                 <button
                   onClick={submitWord}
@@ -710,7 +721,6 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Reset Confirmation Modal */}
       {isResetModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div 
@@ -735,7 +745,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
       <header className="bg-[#0c1a26] text-white shadow-2xl py-6 sticky top-0 z-50 border-b-4 border-amber-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-5">
@@ -786,12 +795,8 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Right Column: Turn Banner + Score Table (Main content, appears first on mobile) */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:grid-cols-12 lg:grid gap-8 mt-8">
         <div className="lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
-          
-          {/* Current Turn Banner */}
           <MotionDiv 
             layout
             initial={{ opacity: 0, y: -20 }}
@@ -812,12 +817,9 @@ const App: React.FC = () => {
                 #{gameRound.toString().padStart(2, '0')}
               </div>
             </div>
-            
-            {/* Background Accent */}
             <div className="absolute top-0 right-0 h-full w-1/3 bg-gradient-to-l from-amber-500/5 to-transparent pointer-events-none"></div>
           </MotionDiv>
 
-          {/* Score Table Container */}
           <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
             <div className="bg-[#0c1a26] p-5 border-b border-amber-500/30 flex justify-between items-center">
               <h2 className="font-bold text-white flex items-center gap-3">
@@ -992,7 +994,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Left Column: Standings (Appears second on mobile) */}
         <div ref={standingsRef} className="lg:col-span-4 space-y-6 order-2 lg:order-1">
           <div className="bg-white rounded-3xl shadow-lg border border-stone-200 overflow-hidden">
             <div className="bg-amber-50 p-5 border-b border-amber-100 flex items-center justify-between">
