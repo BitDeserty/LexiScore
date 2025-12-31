@@ -67,6 +67,10 @@ const App: React.FC = () => {
     { id: '1', name: 'Player 1', turns: [] },
     { id: '2', name: 'Player 2', turns: [] }
   ]);
+  
+  // New state to manage when the leaderboard actually visually updates
+  const [displayPlayers, setDisplayPlayers] = useState<Player[]>([...players]);
+  
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [gameRound, setGameRound] = useState(1);
   const [wordInput, setWordInput] = useState('');
@@ -77,6 +81,10 @@ const App: React.FC = () => {
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   
+  // Refs for focusing and scrolling
+  const standingsRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
   // Word Action State
   const [selectedPlayRef, setSelectedPlayRef] = useState<{ 
     playerId: string, 
@@ -95,7 +103,6 @@ const App: React.FC = () => {
   // Name Editing State
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
 
   const MotionDiv = motion.div as any;
 
@@ -127,13 +134,14 @@ const App: React.FC = () => {
     return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
+  // Use displayPlayers for the visual leaderboard
   const rankedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => {
+    return [...displayPlayers].sort((a, b) => {
       const statsA = getPlayerStats(a);
       const statsB = getPlayerStats(b);
       return statsB.totalScore - statsA.totalScore;
     });
-  }, [players, getPlayerStats]);
+  }, [displayPlayers, getPlayerStats]);
 
   const handleResetRequest = useCallback(() => {
     if (isGameStarted) {
@@ -142,7 +150,9 @@ const App: React.FC = () => {
   }, [isGameStarted]);
 
   const performReset = useCallback(() => {
-    setPlayers(prev => prev.map(p => ({ ...p, turns: [] })));
+    const freshPlayers = players.map(p => ({ ...p, turns: [] }));
+    setPlayers(freshPlayers);
+    setDisplayPlayers([...freshPlayers]);
     setCurrentPlayerIndex(0);
     setGameRound(1);
     setWordInput('');
@@ -151,19 +161,24 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
     setIsResetModalOpen(false);
     setIsInputModalOpen(false);
-  }, []);
+  }, [players]);
 
   const addPlayer = useCallback(() => {
     if (isGameStarted) return;
     const newId = Math.random().toString(36).substr(2, 9);
-    setPlayers(prev => [...prev, { id: newId, name: `Player ${prev.length + 1}`, turns: [] }]);
-  }, [players.length, isGameStarted]);
+    const newPlayer = { id: newId, name: `Player ${players.length + 1}`, turns: [] };
+    const updatedPlayers = [...players, newPlayer];
+    setPlayers(updatedPlayers);
+    setDisplayPlayers([...updatedPlayers]);
+  }, [players, isGameStarted]);
 
   const removePlayer = useCallback((id: string) => {
     if (isGameStarted || players.length <= 1) return;
-    setPlayers(prev => prev.filter(p => p.id !== id));
+    const updatedPlayers = players.filter(p => p.id !== id);
+    setPlayers(updatedPlayers);
+    setDisplayPlayers([...updatedPlayers]);
     setCurrentPlayerIndex(0);
-  }, [isGameStarted, players.length]);
+  }, [isGameStarted, players]);
 
   const startEditingName = (player: Player) => {
     setEditingPlayerId(player.id);
@@ -175,9 +190,11 @@ const App: React.FC = () => {
     
     const trimmed = editNameValue.trim();
     if (trimmed) {
-      setPlayers(prev => prev.map(p => 
+      const updated = players.map(p => 
         p.id === editingPlayerId ? { ...p, name: trimmed } : p
-      ));
+      );
+      setPlayers(updated);
+      setDisplayPlayers([...updated]);
     }
     setEditingPlayerId(null);
   };
@@ -199,7 +216,7 @@ const App: React.FC = () => {
     if (!selectedPlayRef) return;
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
     
-    setPlayers(prev => prev.map(p => {
+    const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
@@ -207,12 +224,15 @@ const App: React.FC = () => {
       newPlays[playIdx] = { ...newPlays[playIdx], isRemoved: true };
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
-    }));
+    });
+    setPlayers(updated);
+    // Sync for historical word edits (not turn additions)
+    setDisplayPlayers([...updated]);
     setSelectedPlayRef(null);
   };
 
   const handleUndoRemove = (playerId: string, roundIdx: number, playIdx: number) => {
-    setPlayers(prev => prev.map(p => {
+    const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
@@ -220,7 +240,9 @@ const App: React.FC = () => {
       newPlays[playIdx] = { ...newPlays[playIdx], isRemoved: false };
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
-    }));
+    });
+    setPlayers(updated);
+    setDisplayPlayers([...updated]);
   };
 
   const handleEditWord = () => {
@@ -228,7 +250,7 @@ const App: React.FC = () => {
     const { playerId, roundIdx, playIdx } = selectedPlayRef;
     const newPoints = parseInt(editPointsValue) || 0;
 
-    setPlayers(prev => prev.map(p => {
+    const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
@@ -241,7 +263,9 @@ const App: React.FC = () => {
       };
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
-    }));
+    });
+    setPlayers(updated);
+    setDisplayPlayers([...updated]);
     setSelectedPlayRef(null);
   };
 
@@ -252,7 +276,7 @@ const App: React.FC = () => {
     const currentBingo = !!selectedPlayRef.play.isBingo;
     const becomingBingo = !currentBingo;
 
-    setPlayers(prev => prev.map(p => {
+    const updated = players.map(p => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
@@ -266,8 +290,10 @@ const App: React.FC = () => {
       
       newTurns[roundIdx] = { ...turn, plays: newPlays };
       return { ...p, turns: newTurns };
-    }));
-
+    });
+    
+    setPlayers(updated);
+    setDisplayPlayers([...updated]);
     setSelectedPlayRef(null);
 
     if (becomingBingo && clickCoords) {
@@ -326,6 +352,7 @@ const App: React.FC = () => {
   const endTurn = useCallback(() => {
     const roundIdx = gameRound - 1;
     
+    // 1. Ensure the turn has data
     setPlayers(prev => {
       if (prev[currentPlayerIndex].turns[roundIdx]) return prev;
       
@@ -341,16 +368,36 @@ const App: React.FC = () => {
       return updated;
     });
 
-    if (currentPlayerIndex === players.length - 1) {
-      setGameRound(prev => prev + 1);
-    }
-    
-    setCurrentPlayerIndex(prev => (prev + 1) % players.length);
+    // 2. Start the focus sequence
+    setIsInputModalOpen(false);
+
+    // Use setTimeout to wait for the modal closing animation to finish
+    setTimeout(() => {
+      // 3. Scroll to Standings to focus the user
+      if (standingsRef.current) {
+        standingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      // 4. Delay slightly more before the visual leaderboard "swap"
+      setTimeout(() => {
+        setPlayers(current => {
+          setDisplayPlayers([...current]); // Sync the visual leaderboard with reality
+          return current;
+        });
+        
+        // 5. Update round and player index
+        if (currentPlayerIndex === players.length - 1) {
+          setGameRound(prev => prev + 1);
+        }
+        setCurrentPlayerIndex(prev => (prev + 1) % players.length);
+        
+      }, 400); // Wait for scroll to stabilize
+    }, 300); // Wait for modal exit
+
     setWordInput('');
     setPointsInput('');
     setDefinition(null);
     setEditingPlayerId(null);
-    setIsInputModalOpen(false);
   }, [players.length, currentPlayerIndex, gameRound]);
 
   useEffect(() => {
@@ -706,8 +753,211 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Leaderboard */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Right Column: Turn Banner + Score Table (Main content, appears first on mobile) */}
+        <div className="lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
+          
+          {/* Current Turn Banner */}
+          <MotionDiv 
+            layout
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-[#0c1a26] rounded-3xl p-6 sm:p-8 flex items-center justify-between border-b-8 border-amber-600 shadow-2xl overflow-hidden relative"
+          >
+            <div className="relative z-10 flex flex-col items-start">
+              <p className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Current Turn</p>
+              <div className="flex items-center gap-4">
+                <h2 className="text-3xl sm:text-5xl font-bold text-white scrabble-font">{currentPlayer.name}</h2>
+                <div className="hidden sm:block h-1 w-8 bg-amber-500 rounded-full"></div>
+              </div>
+            </div>
+            <div className="relative z-10 flex flex-col items-end text-right">
+              <p className="text-stone-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Active Round</p>
+              <div className="text-3xl sm:text-5xl font-black text-amber-500/20 tabular-nums">
+                #{gameRound.toString().padStart(2, '0')}
+              </div>
+            </div>
+            
+            {/* Background Accent */}
+            <div className="absolute top-0 right-0 h-full w-1/3 bg-gradient-to-l from-amber-500/5 to-transparent pointer-events-none"></div>
+          </MotionDiv>
+
+          {/* Score Table Container */}
+          <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
+            <div className="bg-[#0c1a26] p-5 border-b border-amber-500/30 flex justify-between items-center">
+              <h2 className="font-bold text-white flex items-center gap-3">
+                <ClipboardList className="text-amber-500" size={24} />
+                Score Sheet
+              </h2>
+            </div>
+            
+            <div className="overflow-x-auto flex-grow custom-scrollbar">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-200">
+                    <th className="px-4 py-5 text-center text-stone-400 w-12 border-r border-stone-100">
+                      <Hash size={16} className="mx-auto opacity-40" />
+                    </th>
+                    {players.map((p, idx) => (
+                      <th key={p.id} className={`px-8 py-5 relative group transition-colors ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
+                        {editingPlayerId === p.id ? (
+                          <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-150">
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') savePlayerName();
+                                if (e.key === 'Escape') cancelEditingName();
+                              }}
+                              onBlur={savePlayerName}
+                              className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-800 font-bold outline-none shadow-sm focus:ring-4 focus:ring-amber-500/10"
+                              placeholder="Player name..."
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <span 
+                                onClick={() => startEditingName(p)}
+                                className={`font-black text-lg tracking-tight truncate cursor-pointer hover:text-amber-600 transition-colors ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}
+                              >
+                                {p.name}
+                              </span>
+                              <button 
+                                onClick={() => startEditingName(p)} 
+                                className="text-stone-300 hover:text-amber-500 transition-colors opacity-20 group-hover:opacity-100 p-1 shrink-0"
+                                title="Edit Name"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            </div>
+                            {!isGameStarted && players.length > 1 && (
+                              <button 
+                                onClick={() => removePlayer(p.id)} 
+                                className="text-stone-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 shrink-0 p-1"
+                                title="Remove Player"
+                              >
+                                <X size={16} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {Array.from({ length: Math.max(gameRound, 1) }).map((_, roundIdx) => (
+                    <tr key={roundIdx} className={`transition-all duration-300 ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`}>
+                      <td className="px-1 py-5 text-center border-r border-stone-100 bg-stone-50/30">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-black text-stone-500 bg-stone-100 border border-stone-200 shadow-sm">
+                          {roundIdx + 1}
+                        </span>
+                      </td>
+                      {players.map((p, playerIdx) => {
+                        const turn = p.turns[roundIdx];
+                        const isCurrentTurnCell = playerIdx === currentPlayerIndex && roundIdx === gameRound - 1;
+                        const roundTotal = turn ? turn.plays.reduce((sum, play) => play.isRemoved ? sum : sum + play.points, 0) : 0;
+                        
+                        return (
+                          <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 relative ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
+                            {turn ? (
+                              <div className="flex flex-col gap-2">
+                                {turn.plays.map((play, playIdx) => {
+                                  if (play.isRemoved) {
+                                    return (
+                                      <button 
+                                        key={playIdx}
+                                        onClick={() => handleUndoRemove(p.id, roundIdx, playIdx)}
+                                        className="flex items-center justify-between w-full text-left p-1.5 rounded-lg bg-stone-50 border border-stone-100 hover:bg-stone-100 transition-all group/undo"
+                                      >
+                                        <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter flex items-center gap-1.5 italic">
+                                          <Trash2 size={10} className="opacity-50" /> Removed
+                                        </span>
+                                        <span className="text-[9px] font-black bg-stone-200 px-1.5 py-0.5 rounded text-stone-600 group-hover/undo:bg-amber-500 group-hover/undo:text-white transition-colors">
+                                          Undo
+                                        </span>
+                                      </button>
+                                    );
+                                  }
+                                  
+                                  return (
+                                    <button 
+                                      key={playIdx} 
+                                      onClick={(e) => handlePlayClick(e, p.id, roundIdx, playIdx, play)}
+                                      className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-all group/play ${play.word === '—' ? 'cursor-default pointer-events-none' : 'cursor-pointer'}`}
+                                    >
+                                      <span className={`text-base leading-tight break-words max-w-[150px] uppercase tracking-wide ${
+                                        play.word === '—' 
+                                          ? 'text-stone-300 italic font-normal' 
+                                          : play.isBingo 
+                                            ? 'text-amber-700 font-black scale-105 origin-left' 
+                                            : 'text-stone-800 font-bold'
+                                      }`}>
+                                        {play.word}{play.isEdited ? '*' : ''}
+                                      </span>
+                                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 border shadow-sm transition-all ${
+                                        play.isBingo 
+                                          ? 'bg-amber-600 text-white border-amber-500' 
+                                          : 'bg-stone-100 text-stone-600 border-stone-200 group-hover/play:bg-stone-200'
+                                      }`}>
+                                        {play.points}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                                
+                                {turn.plays.filter(pl => !pl.isRemoved).length > 1 && (
+                                  <div className="mt-1 pt-1 border-t border-amber-100 flex justify-end">
+                                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-200">
+                                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter">SUM</span>
+                                      <span className="text-[11px] font-black text-amber-700">{roundTotal}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : isCurrentTurnCell ? null : (
+                              <span className="text-stone-200 text-xl font-light opacity-50">—</span>
+                            )}
+
+                            {isCurrentTurnCell && (
+                              <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                                <button 
+                                  onClick={() => setIsInputModalOpen(true)}
+                                  className="w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 hover:border-amber-400 transition-all active:scale-95 group"
+                                >
+                                  <Plus size={20} className="group-hover:rotate-90 transition-transform" />
+                                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Words</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="sticky bottom-0 bg-[#0c1a26] text-white font-bold border-t-4 border-amber-500 shadow-[0_-8px_15_rgba(0,0,0,0.3)]">
+                  <tr>
+                    <td className="px-4 py-8 border-r border-stone-700"></td>
+                    {players.map((p) => {
+                      const stats = getPlayerStats(p);
+                      return (
+                        <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
+                          {stats.totalScore}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Left Column: Standings (Appears second on mobile) */}
+        <div ref={standingsRef} className="lg:col-span-4 space-y-6 order-2 lg:order-1">
           <div className="bg-white rounded-3xl shadow-lg border border-stone-200 overflow-hidden">
             <div className="bg-amber-50 p-5 border-b border-amber-100 flex items-center justify-between">
               <h2 className="font-bold text-stone-800 flex items-center gap-2">
@@ -734,192 +984,8 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          
-          <div className="bg-[#0c1a26] rounded-3xl p-8 text-center border-b-8 border-amber-600 shadow-2xl">
-            <p className="text-amber-500 text-xs font-black uppercase tracking-[0.3em] mb-4">Current Turn</p>
-            <h2 className="text-4xl font-bold text-white scrabble-font mb-4">{currentPlayer.name}</h2>
-            <div className="h-1 w-12 bg-amber-500 mx-auto rounded-full mb-6"></div>
-            <button 
-              onClick={() => setIsInputModalOpen(true)}
-              className="w-full bg-white text-stone-900 py-4 rounded-2xl font-black text-lg hover:bg-amber-50 transition-all active:scale-95 shadow-lg flex items-center justify-center gap-3"
-            >
-              <Plus size={20} /> Add Words
-            </button>
-          </div>
         </div>
 
-        {/* Right Column: Score Table */}
-        <div className="lg:col-span-8 bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
-          <div className="bg-[#0c1a26] p-5 border-b border-amber-500/30 flex justify-between items-center">
-            <h2 className="font-bold text-white flex items-center gap-3">
-              <ClipboardList className="text-amber-500" size={24} />
-              Score Sheet
-            </h2>
-          </div>
-          
-          <div className="overflow-x-auto flex-grow custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-200">
-                  <th className="px-4 py-5 text-center text-stone-400 w-12 border-r border-stone-100">
-                    <Hash size={16} className="mx-auto opacity-40" />
-                  </th>
-                  {players.map((p, idx) => (
-                    <th key={p.id} className={`px-8 py-5 relative group transition-colors ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
-                      {editingPlayerId === p.id ? (
-                        <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-150">
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') savePlayerName();
-                              if (e.key === 'Escape') cancelEditingName();
-                            }}
-                            onBlur={savePlayerName}
-                            className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-800 font-bold outline-none shadow-sm focus:ring-4 focus:ring-amber-500/10"
-                            placeholder="Player name..."
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <span className={`font-black text-lg tracking-tight truncate ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>
-                              {p.name}
-                            </span>
-                            {!isGameStarted && (
-                              <button 
-                                onClick={() => startEditingName(p)} 
-                                className="text-stone-300 hover:text-amber-500 transition-colors opacity-0 group-hover:opacity-100 p-1"
-                                title="Edit Name"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                            )}
-                          </div>
-                          {!isGameStarted && players.length > 1 && (
-                            <button 
-                              onClick={() => removePlayer(p.id)} 
-                              className="text-stone-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 shrink-0 p-1"
-                              title="Remove Player"
-                            >
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {Array.from({ length: Math.max(gameRound, 1) }).map((_, roundIdx) => (
-                  <tr key={roundIdx} className={`transition-all duration-300 ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`}>
-                    <td className="px-1 py-5 text-center border-r border-stone-100 bg-stone-50/30">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-black text-stone-500 bg-stone-100 border border-stone-200 shadow-sm">
-                        {roundIdx + 1}
-                      </span>
-                    </td>
-                    {players.map((p, playerIdx) => {
-                      const turn = p.turns[roundIdx];
-                      const isCurrentTurnCell = playerIdx === currentPlayerIndex && roundIdx === gameRound - 1;
-                      const roundTotal = turn ? turn.plays.reduce((sum, play) => play.isRemoved ? sum : sum + play.points, 0) : 0;
-                      
-                      return (
-                        <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 relative ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
-                          {turn ? (
-                            <div className="flex flex-col gap-2">
-                              {turn.plays.map((play, playIdx) => {
-                                if (play.isRemoved) {
-                                  return (
-                                    <button 
-                                      key={playIdx}
-                                      onClick={() => handleUndoRemove(p.id, roundIdx, playIdx)}
-                                      className="flex items-center justify-between w-full text-left p-1.5 rounded-lg bg-stone-50 border border-stone-100 hover:bg-stone-100 transition-all group/undo"
-                                    >
-                                      <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter flex items-center gap-1.5 italic">
-                                        <Trash2 size={10} className="opacity-50" /> Removed
-                                      </span>
-                                      <span className="text-[9px] font-black bg-stone-200 px-1.5 py-0.5 rounded text-stone-600 group-hover/undo:bg-amber-500 group-hover/undo:text-white transition-colors">
-                                        Undo
-                                      </span>
-                                    </button>
-                                  );
-                                }
-                                
-                                return (
-                                  <button 
-                                    key={playIdx} 
-                                    onClick={(e) => handlePlayClick(e, p.id, roundIdx, playIdx, play)}
-                                    className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-all group/play ${play.word === '—' ? 'cursor-default pointer-events-none' : 'cursor-pointer'}`}
-                                  >
-                                    <span className={`text-base leading-tight break-words max-w-[150px] uppercase tracking-wide ${
-                                      play.word === '—' 
-                                        ? 'text-stone-300 italic font-normal' 
-                                        : play.isBingo 
-                                          ? 'text-amber-700 font-black scale-105 origin-left' 
-                                          : 'text-stone-800 font-bold'
-                                    }`}>
-                                      {play.word}{play.isEdited ? '*' : ''}
-                                    </span>
-                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 border shadow-sm transition-all ${
-                                      play.isBingo 
-                                        ? 'bg-amber-600 text-white border-amber-500' 
-                                        : 'bg-stone-100 text-stone-600 border-stone-200 group-hover/play:bg-stone-200'
-                                    }`}>
-                                      {play.points}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                              
-                              {turn.plays.filter(pl => !pl.isRemoved).length > 1 && (
-                                <div className="mt-1 pt-1 border-t border-amber-100 flex justify-end">
-                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-200">
-                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter">SUM</span>
-                                    <span className="text-[11px] font-black text-amber-700">{roundTotal}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : isCurrentTurnCell ? null : (
-                            <span className="text-stone-200 text-xl font-light opacity-50">—</span>
-                          )}
-
-                          {isCurrentTurnCell && (
-                            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500">
-                              <button 
-                                onClick={() => setIsInputModalOpen(true)}
-                                className="w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 hover:border-amber-400 transition-all active:scale-95 group"
-                              >
-                                <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Words</span>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="sticky bottom-0 bg-[#0c1a26] text-white font-bold border-t-4 border-amber-500 shadow-[0_-8px_15px_rgba(0,0,0,0.3)]">
-                <tr>
-                  <td className="px-4 py-8 border-r border-stone-700"></td>
-                  {players.map((p) => {
-                    const stats = getPlayerStats(p);
-                    return (
-                      <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
-                        {stats.totalScore}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
       </main>
       
       <style>{`
