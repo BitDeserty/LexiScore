@@ -1,2 +1,3 @@
 
-export const ENABLE_AI_INSIGHT = false;
+export type WordCheckerType = 'AI' | 'LOCAL' | 'NONE';
+export const WORD_CHECKER: WordCheckerType = 'LOCAL';

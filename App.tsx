@@ -25,7 +25,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
 import StatsCard from './components/StatsCard';
 import { defineWord } from './services/geminiService';
-import { ENABLE_AI_INSIGHT } from './config';
+import { WORD_CHECKER } from './config';
 
 // Confetti particle component
 const ConfettiParticle = ({ x, y, color }: { x: number; y: number; color: string }) => {
@@ -81,6 +81,9 @@ const App: React.FC = () => {
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   
+  // Local word list for verification
+  const [wordList, setWordList] = useState<Set<string>>(new Set());
+  
   // Refs for focusing and scrolling
   const standingsRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +108,24 @@ const App: React.FC = () => {
   const [editNameValue, setEditNameValue] = useState('');
 
   const MotionDiv = motion.div as any;
+
+  // Load enable1.txt on init
+  useEffect(() => {
+    if (WORD_CHECKER === 'LOCAL') {
+      fetch('./enable1.txt')
+        .then(res => res.text())
+        .then(text => {
+          const words = text.split(/\r?\n/).map(w => w.trim().toUpperCase());
+          setWordList(new Set(words));
+        })
+        .catch(err => console.error("Failed to load local word list:", err));
+    }
+  }, []);
+
+  const isWordLegal = useMemo(() => {
+    if (WORD_CHECKER !== 'LOCAL' || wordInput.length < 2) return null;
+    return wordList.has(wordInput.toUpperCase());
+  }, [wordInput, wordList]);
 
   const isGameStarted = useMemo(() => 
     players.some(p => p.turns.length > 0),
@@ -401,7 +422,7 @@ const App: React.FC = () => {
   }, [players.length, currentPlayerIndex, gameRound]);
 
   useEffect(() => {
-    if (!ENABLE_AI_INSIGHT) return;
+    if (WORD_CHECKER !== 'AI') return;
     
     const timer = setTimeout(async () => {
       if (wordInput.length >= 3) {
@@ -606,7 +627,15 @@ const App: React.FC = () => {
               <div className="p-8 space-y-6 flex-grow overflow-y-auto">
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em] ml-1">Word Played</label>
+                    <div className="flex justify-between items-center ml-1">
+                      <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em]">Word Played</label>
+                      {WORD_CHECKER === 'LOCAL' && wordInput.length >= 2 && (
+                        <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${isWordLegal ? 'text-green-600' : 'text-red-500'}`}>
+                          {isWordLegal ? <Check size={12} /> : <X size={12} />}
+                          {isWordLegal ? 'Legal' : 'Not Legal'}
+                        </div>
+                      )}
+                    </div>
                     <input
                       autoFocus
                       type="text"
@@ -614,7 +643,13 @@ const App: React.FC = () => {
                       onChange={(e) => setWordInput(e.target.value.toUpperCase())}
                       onKeyDown={(e) => e.key === 'Enter' && submitWord()}
                       placeholder="e.g. LEXICON"
-                      className="w-full bg-stone-50 border-2 border-stone-200 rounded-2xl px-5 py-4 text-xl font-bold tracking-widest focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 transition-all outline-none"
+                      className={`w-full bg-stone-50 border-2 rounded-2xl px-5 py-4 text-xl font-bold tracking-widest focus:ring-4 transition-all outline-none ${
+                        WORD_CHECKER === 'LOCAL' && wordInput.length >= 2
+                          ? isWordLegal 
+                            ? 'border-green-200 focus:ring-green-500/10 focus:border-green-500' 
+                            : 'border-red-200 focus:ring-red-500/10 focus:border-red-500'
+                          : 'border-stone-200 focus:ring-amber-500/10 focus:border-amber-500'
+                      }`}
                     />
                   </div>
                   
@@ -631,7 +666,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {ENABLE_AI_INSIGHT && (definition || isLoadingDef) && (
+                {WORD_CHECKER === 'AI' && (definition || isLoadingDef) && (
                   <div className="p-5 bg-stone-50 rounded-2xl border border-amber-200/50 flex gap-4 shadow-sm">
                     <div className="bg-amber-100 p-2 rounded-lg h-fit shrink-0">
                       <Info className="text-amber-700" size={20} />
