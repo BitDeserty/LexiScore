@@ -763,9 +763,10 @@ const App: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-[#0c1a26] rounded-3xl p-6 sm:p-8 flex items-center justify-between border-b-8 border-amber-600 shadow-2xl overflow-hidden relative"
           >
-            <div className="relative z-10 flex flex-col items-start">
+            <div className="relative z-10 flex flex-col items-center text-center">
               <p className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Current Turn</p>
               <div className="flex items-center gap-4">
+                <div className="hidden sm:block h-1 w-8 bg-amber-500 rounded-full"></div>
                 <h2 className="text-3xl sm:text-5xl font-bold text-white scrabble-font">{currentPlayer.name}</h2>
                 <div className="hidden sm:block h-1 w-8 bg-amber-500 rounded-full"></div>
               </div>
@@ -962,7 +963,7 @@ const App: React.FC = () => {
             <div className="bg-amber-50 p-5 border-b border-amber-100 flex items-center justify-between">
               <h2 className="font-bold text-stone-800 flex items-center gap-2">
                 <Trophy size={18} className="text-amber-600" />
-                Standings
+                Leaderboard
               </h2>
               <span className="text-xs font-black text-amber-700 uppercase tracking-widest bg-amber-200 px-3 py-1.5 rounded-lg shadow-sm">
                 Round {gameRound}
