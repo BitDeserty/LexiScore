@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   RotateCcw, 
@@ -114,7 +113,9 @@ const App: React.FC = () => {
   const [wordListStatus, setWordListStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   
   const standingsRef = useRef<HTMLDivElement>(null);
+  const activeCellRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const prevRankedIdsRef = useRef<string[]>([]);
 
   const [selectedPlayRef, setSelectedPlayRef] = useState<{ 
     playerId: string, 
@@ -141,6 +142,60 @@ const App: React.FC = () => {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [players, currentPlayerIndex, gameRound]);
+
+  const getPlayerStats = useCallback((player: Player): PlayerStats => {
+    let totalScore = 0;
+    let allPlays: Play[] = [];
+    
+    player.turns.forEach(turn => {
+      if (turn) {
+        turn.plays.forEach(play => {
+          if (play.word !== '—' && !play.isRemoved) {
+            totalScore += play.points;
+            allPlays.push(play);
+          }
+        });
+      }
+    });
+
+    const wordCount = allPlays.length;
+    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
+    const highestWord = allPlays.length > 0 
+      ? [...allPlays].sort((a, b) => b.points - a.points)[0]
+      : null;
+
+    return { totalScore, averagePoints, highestWord, wordCount };
+  }, []);
+
+  const rankedPlayers = useMemo(() => {
+    return [...displayPlayers].sort((a, b) => {
+      const statsA = getPlayerStats(a);
+      const statsB = getPlayerStats(b);
+      return statsB.totalScore - statsA.totalScore;
+    });
+  }, [displayPlayers, getPlayerStats]);
+
+  // Handle automatic centering and leaderboard focus
+  useEffect(() => {
+    const currentRankedIds = rankedPlayers.map(p => p.id);
+    const hasRankChanged = prevRankedIdsRef.current.length > 0 && 
+                           JSON.stringify(prevRankedIdsRef.current) !== JSON.stringify(currentRankedIds);
+    
+    if (hasRankChanged && standingsRef.current) {
+      // If the leaderboard changed, scroll to it. 
+      // Using 'center' ensures the header is visible even if the component is at the very bottom of the page.
+      standingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (activeCellRef.current) {
+      // Otherwise, center the next "Add Words" cell
+      activeCellRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center', 
+        inline: 'center' 
+      });
+    }
+
+    prevRankedIdsRef.current = currentRankedIds;
+  }, [currentPlayerIndex, gameRound, rankedPlayers]);
 
   // Load enable1.txt on init
   useEffect(() => {
@@ -188,38 +243,6 @@ const App: React.FC = () => {
     players.some(p => p.turns.length > 0),
   [players]);
 
-  const getPlayerStats = useCallback((player: Player): PlayerStats => {
-    let totalScore = 0;
-    let allPlays: Play[] = [];
-    
-    player.turns.forEach(turn => {
-      if (turn) {
-        turn.plays.forEach(play => {
-          if (play.word !== '—' && !play.isRemoved) {
-            totalScore += play.points;
-            allPlays.push(play);
-          }
-        });
-      }
-    });
-
-    const wordCount = allPlays.length;
-    const averagePoints = wordCount > 0 ? totalScore / wordCount : 0;
-    const highestWord = allPlays.length > 0 
-      ? [...allPlays].sort((a, b) => b.points - a.points)[0]
-      : null;
-
-    return { totalScore, averagePoints, highestWord, wordCount };
-  }, []);
-
-  const rankedPlayers = useMemo(() => {
-    return [...displayPlayers].sort((a, b) => {
-      const statsA = getPlayerStats(a);
-      const statsB = getPlayerStats(b);
-      return statsB.totalScore - statsA.totalScore;
-    });
-  }, [displayPlayers, getPlayerStats]);
-
   const handleResetRequest = useCallback(() => {
     if (isGameStarted) {
       setIsResetModalOpen(true);
@@ -238,6 +261,7 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
     setIsResetModalOpen(false);
     setIsInputModalOpen(false);
+    prevRankedIdsRef.current = [];
   }, [players]);
 
   const addPlayer = useCallback(() => {
@@ -434,22 +458,20 @@ const App: React.FC = () => {
       updated[currentPlayerIndex] = player;
       return updated;
     });
+    
     setIsInputModalOpen(false);
+    
     setTimeout(() => {
-      if (standingsRef.current) {
-        standingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPlayers(current => {
+        setDisplayPlayers([...current]);
+        return current;
+      });
+      if (currentPlayerIndex === players.length - 1) {
+        setGameRound(prev => prev + 1);
       }
-      setTimeout(() => {
-        setPlayers(current => {
-          setDisplayPlayers([...current]);
-          return current;
-        });
-        if (currentPlayerIndex === players.length - 1) {
-          setGameRound(prev => prev + 1);
-        }
-        setCurrentPlayerIndex(prev => (prev + 1) % players.length);
-      }, 400);
+      setCurrentPlayerIndex(prev => (prev + 1) % players.length);
     }, 300);
+
     setWordInput('');
     setPointsInput('');
     setDefinition(null);
@@ -462,7 +484,7 @@ const App: React.FC = () => {
   const confettiColors = ['#F59E0B', '#FCD34D', '#3B82F6', '#EF4444', '#10B981', '#8B5CF6'];
 
   return (
-    <div className="min-h-screen bg-stone-100 pb-12">
+    <div className="min-h-screen bg-stone-100 pb-12 flex flex-col">
       {confetti && (
         <div className="fixed inset-0 pointer-events-none z-[200]">
           {Array.from({ length: 40 }).map((_, i) => (
@@ -833,8 +855,8 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:grid-cols-12 lg:grid gap-8 mt-8">
-        <div className="lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:grid lg:grid-cols-12 gap-8 mt-8 flex-grow w-full overflow-x-hidden">
+        <div className="w-full min-w-0 lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
           <MotionDiv 
             layout
             initial={{ opacity: 0, y: -20 }}
@@ -867,14 +889,14 @@ const App: React.FC = () => {
             </div>
             
             <div className="overflow-x-auto flex-grow custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[700px]">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-stone-50 border-b border-stone-200">
                     <th className="px-4 py-5 text-center text-stone-400 w-12 border-r border-stone-100">
                       <Hash size={16} className="mx-auto opacity-40" />
                     </th>
                     {players.map((p, idx) => (
-                      <th key={p.id} className={`px-8 py-5 relative group transition-colors ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
+                      <th key={p.id} className={`px-4 py-5 relative group transition-colors ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
                         {editingPlayerId === p.id ? (
                           <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-150">
                             <input
@@ -937,7 +959,7 @@ const App: React.FC = () => {
                         const roundTotal = turn ? turn.plays.reduce((sum, play) => play.isRemoved ? sum : sum + play.points, 0) : 0;
                         
                         return (
-                          <td key={p.id} className={`px-8 py-5 border-l border-stone-50/50 relative ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
+                          <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
                             {turn ? (
                               <div className="flex flex-col gap-2">
                                 {turn.plays.map((play, playIdx) => {
@@ -998,7 +1020,7 @@ const App: React.FC = () => {
                             )}
 
                             {isCurrentTurnCell && (
-                              <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                              <div ref={activeCellRef} className="mt-4 animate-in fade-in slide-in-from-top-2 duration-500 scroll-mt-24">
                                 <button 
                                   onClick={() => setIsInputModalOpen(true)}
                                   className="w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 hover:border-amber-400 transition-all active:scale-95 group"
@@ -1020,7 +1042,7 @@ const App: React.FC = () => {
                     {players.map((p) => {
                       const stats = getPlayerStats(p);
                       return (
-                        <td key={p.id} className="px-8 py-8 text-4xl scrabble-font text-white drop-shadow-md">
+                        <td key={p.id} className="px-4 py-8 text-4xl scrabble-font text-white drop-shadow-md">
                           {stats.totalScore}
                         </td>
                       );
@@ -1032,7 +1054,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div ref={standingsRef} className="lg:col-span-4 space-y-6 order-2 lg:order-1">
+        <div ref={standingsRef} className="w-full min-w-0 lg:col-span-4 space-y-6 order-2 lg:order-1 scroll-mt-24">
           <div className="bg-white rounded-3xl shadow-lg border border-stone-200 overflow-hidden">
             <div className="bg-amber-50 p-5 border-b border-amber-100 flex items-center justify-between">
               <h2 className="font-bold text-stone-800 flex items-center gap-2">
@@ -1062,6 +1084,15 @@ const App: React.FC = () => {
         </div>
 
       </main>
+
+      <footer className="w-full mt-12 mb-8 px-4 text-center">
+        <p className="text-stone-500 text-sm font-medium leading-relaxed max-w-2xl mx-auto">
+          Copyright 2026 BitDeserty Studios, a Company of BitDeserty LLC. 
+          <span className="hidden sm:inline"> • </span>
+          <br className="sm:hidden" />
+          Word Validator powered by Gemini API
+        </p>
+      </footer>
       
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
