@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   RotateCcw, 
@@ -20,15 +21,19 @@ import {
   Undo2,
   Plus,
   Loader2,
-  Search
+  Search,
+  Beaker
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
 import StatsCard from './components/StatsCard';
+import TestModal from './components/TestModal';
 import { defineWord } from './services/geminiService';
+import { runRegressionSuite, TestResult } from './services/testRunner';
 import { WORD_CHECKER } from './config';
 
 const STORAGE_KEY = 'lexiscore_game_state_v1';
+const MAX_PLAYERS = 4;
 
 // Confetti particle component
 const ConfettiParticle: React.FC<{ x: number; y: number; color: string }> = ({ x, y, color }) => {
@@ -106,6 +111,8 @@ const App: React.FC = () => {
   const [isLoadingDef, setIsLoadingDef] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [logoError, setLogoError] = useState(false);
   
   // Local word list states
@@ -167,6 +174,12 @@ const App: React.FC = () => {
     return { totalScore, averagePoints, highestWord, wordCount };
   }, []);
 
+  const handleRunDiagnostics = () => {
+    const results = runRegressionSuite(getPlayerStats);
+    setTestResults(results);
+    setIsTestModalOpen(true);
+  };
+
   const rankedPlayers = useMemo(() => {
     return [...displayPlayers].sort((a, b) => {
       const statsA = getPlayerStats(a);
@@ -183,7 +196,6 @@ const App: React.FC = () => {
     
     if (hasRankChanged && standingsRef.current) {
       // If the leaderboard changed, scroll to it. 
-      // Using 'center' ensures the header is visible even if the component is at the very bottom of the page.
       standingsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else if (activeCellRef.current) {
       // Otherwise, center the next "Add Words" cell
@@ -265,7 +277,7 @@ const App: React.FC = () => {
   }, [players]);
 
   const addPlayer = useCallback(() => {
-    if (isGameStarted) return;
+    if (isGameStarted || players.length >= MAX_PLAYERS) return;
     const newId = Math.random().toString(36).substr(2, 9);
     const newPlayer = { id: newId, name: `Player ${players.length + 1}`, turns: [] };
     const updatedPlayers = [...players, newPlayer];
@@ -498,6 +510,13 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Regression Test Modal */}
+      <TestModal 
+        isOpen={isTestModalOpen}
+        onClose={() => setIsTestModalOpen(false)}
+        results={testResults}
+      />
+
       {/* Play Management Modal */}
       <AnimatePresence>
         {selectedPlayRef && (
@@ -513,7 +532,7 @@ const App: React.FC = () => {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden"
+              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-md overflow-hidden"
             >
               <div className="bg-amber-500 p-6 text-stone-900 flex justify-between items-center">
                 <div>
@@ -787,7 +806,7 @@ const App: React.FC = () => {
             className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
             onClick={() => setIsResetModalOpen(false)}
           />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <AlertTriangle className="text-amber-600" size={32} />
@@ -805,81 +824,75 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <header className="bg-[#0c1a26] text-white shadow-2xl py-6 sticky top-0 z-50 border-b-4 border-amber-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800">
-              {!logoError ? (
-                <img 
-                  src="./bitdeserty_avatar_small.jpg" 
-                  alt="BitDeserty Studios Logo" 
-                  className="w-full h-full object-cover"
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <Trophy className="text-amber-500" size={28} />
-              )}
+      {/* Pinned Header & Turn Status Bar */}
+      <div className="sticky top-0 z-[100] flex flex-col shadow-2xl">
+        <header className="bg-[#0c1a26] text-white py-6 border-b-4 border-amber-500">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800">
+                {!logoError ? (
+                  <img 
+                    src="./bitdeserty_avatar_small.jpg" 
+                    alt="BitDeserty Studios Logo" 
+                    className="w-full h-full object-cover"
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <Trophy className="text-amber-500" size={28} />
+                )}
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold tracking-tight scrabble-font leading-none text-white drop-shadow-md">LexiScore</h1>
+                <p className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mt-2">By BitDeserty Studios</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight scrabble-font leading-none text-white drop-shadow-md">LexiScore</h1>
-              <p className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mt-2">By BitDeserty Studios</p>
+            
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleResetRequest}
+                disabled={!isGameStarted}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border font-semibold ${
+                  isGameStarted 
+                  ? 'bg-[#1a2e40] hover:bg-[#253d54] text-stone-300 border-stone-700 active:scale-95' 
+                  : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed opacity-50'
+                }`}
+              >
+                <RotateCcw size={18} />
+                <span className="hidden sm:inline">Reset Game</span>
+              </button>
+              <button
+                disabled={isGameStarted || players.length >= MAX_PLAYERS}
+                onClick={addPlayer}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all active:scale-95 font-bold ${
+                  isGameStarted || players.length >= MAX_PLAYERS
+                  ? 'bg-stone-800 text-stone-600 cursor-not-allowed opacity-50' 
+                  : 'bg-amber-600 hover:bg-amber-500 text-stone-900 shadow-xl shadow-amber-900/40 border-b-4 border-amber-800'
+                }`}
+              >
+                <UserPlus size={18} />
+                <span className="hidden sm:inline">Add Player</span>
+              </button>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleResetRequest}
-              disabled={!isGameStarted}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border font-semibold ${
-                isGameStarted 
-                ? 'bg-[#1a2e40] hover:bg-[#253d54] text-stone-300 border-stone-700 active:scale-95' 
-                : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed opacity-50'
-              }`}
-            >
-              <RotateCcw size={18} />
-              <span className="hidden sm:inline">Reset Game</span>
-            </button>
-            <button
-              disabled={isGameStarted}
-              onClick={addPlayer}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all active:scale-95 font-bold ${
-                isGameStarted 
-                ? 'bg-stone-800 text-stone-600 cursor-not-allowed opacity-50' 
-                : 'bg-amber-600 hover:bg-amber-500 text-stone-900 shadow-xl shadow-amber-900/40 border-b-4 border-amber-800'
-              }`}
-            >
-              <UserPlus size={18} />
-              <span className="hidden sm:inline">Add Player</span>
-            </button>
+        </header>
+
+        {/* Floating Current Turn Bar */}
+        <div className="bg-[#0c1a26]/95 backdrop-blur-md border-b-8 border-amber-600 py-3">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+            <div className="flex items-baseline gap-4">
+              <span className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Current Turn</span>
+              <h2 className="text-2xl sm:text-4xl font-bold text-white scrabble-font">{currentPlayer.name}</h2>
+            </div>
+            <div className="flex items-center gap-3">
+               <span className="text-stone-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Active Round</span>
+               <span className="text-2xl sm:text-3xl font-black text-amber-500/40 tabular-nums">#{gameRound.toString().padStart(2, '0')}</span>
+            </div>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:grid lg:grid-cols-12 gap-8 mt-8 flex-grow w-full overflow-x-hidden">
         <div className="w-full min-w-0 lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
-          <MotionDiv 
-            layout
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-[#0c1a26] rounded-3xl p-6 sm:p-8 flex items-center justify-between border-b-8 border-amber-600 shadow-2xl overflow-hidden relative"
-          >
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <p className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Current Turn</p>
-              <div className="flex items-center gap-4">
-                <div className="hidden sm:block h-1 w-8 bg-amber-500 rounded-full"></div>
-                <h2 className="text-3xl sm:text-5xl font-bold text-white scrabble-font">{currentPlayer.name}</h2>
-                <div className="hidden sm:block h-1 w-8 bg-amber-500 rounded-full"></div>
-              </div>
-            </div>
-            <div className="relative z-10 flex flex-col items-end text-right">
-              <p className="text-stone-500 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Active Round</p>
-              <div className="text-3xl sm:text-5xl font-black text-amber-500/20 tabular-nums">
-                #{gameRound.toString().padStart(2, '0')}
-              </div>
-            </div>
-            <div className="absolute top-0 right-0 h-full w-1/3 bg-gradient-to-l from-amber-500/5 to-transparent pointer-events-none"></div>
-          </MotionDiv>
-
           <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
             <div className="bg-[#0c1a26] p-5 border-b border-amber-500/30 flex justify-between items-center">
               <h2 className="font-bold text-white flex items-center gap-3">
@@ -888,17 +901,17 @@ const App: React.FC = () => {
               </h2>
             </div>
             
-            <div className="overflow-x-auto flex-grow custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[600px]">
-                <thead>
-                  <tr className="bg-stone-50 border-b border-stone-200">
-                    <th className="px-4 py-5 text-center text-stone-400 w-12 border-r border-stone-100">
-                      <Hash size={16} className="mx-auto opacity-40" />
+            <div className="overflow-auto flex-grow custom-scrollbar flex flex-col">
+              <table className="w-full text-left border-collapse min-w-[600px] h-full flex flex-col">
+                <thead className="block bg-stone-50 border-b border-stone-200">
+                  <tr className="grid" style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
+                    <th className="px-4 py-5 text-center text-stone-400 border-r border-stone-100 flex items-center justify-center">
+                      <Hash size={16} className="opacity-40" />
                     </th>
                     {players.map((p, idx) => (
-                      <th key={p.id} className={`px-4 py-5 relative group transition-colors ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
+                      <th key={p.id} className={`px-4 py-5 relative group transition-colors flex items-center ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
                         {editingPlayerId === p.id ? (
-                          <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-150">
+                          <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-150 w-full">
                             <input
                               ref={editInputRef}
                               type="text"
@@ -914,7 +927,7 @@ const App: React.FC = () => {
                             />
                           </div>
                         ) : (
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center justify-between gap-3 w-full">
                             <div className="flex items-center gap-3 overflow-hidden">
                               <span 
                                 onClick={() => startEditingName(p)}
@@ -945,10 +958,10 @@ const App: React.FC = () => {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="block flex-grow divide-y divide-stone-100">
                   {Array.from({ length: Math.max(gameRound, 1) }).map((_, roundIdx) => (
-                    <tr key={roundIdx} className={`transition-all duration-300 ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`}>
-                      <td className="px-1 py-5 text-center border-r border-stone-100 bg-stone-50/30">
+                    <tr key={roundIdx} className={`grid transition-all duration-300 ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`} style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
+                      <td className="px-1 py-5 text-center border-r border-stone-100 bg-stone-50/30 flex items-center justify-center">
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-black text-stone-500 bg-stone-100 border border-stone-200 shadow-sm">
                           {roundIdx + 1}
                         </span>
@@ -959,7 +972,7 @@ const App: React.FC = () => {
                         const roundTotal = turn ? turn.plays.reduce((sum, play) => play.isRemoved ? sum : sum + play.points, 0) : 0;
                         
                         return (
-                          <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
+                          <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative flex flex-col justify-center ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
                             {turn ? (
                               <div className="flex flex-col gap-2">
                                 {turn.plays.map((play, playIdx) => {
@@ -1036,13 +1049,13 @@ const App: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="sticky bottom-0 bg-[#0c1a26] text-white font-bold border-t-4 border-amber-500 shadow-[0_-8px_15_rgba(0,0,0,0.3)]">
-                  <tr>
+                <tfoot className="block sticky bottom-0 bg-[#0c1a26] text-white font-bold border-t-4 border-amber-500 shadow-[0_-8px_15px_rgba(0,0,0,0.3)] mt-auto z-10">
+                  <tr className="grid" style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
                     <td className="px-4 py-8 border-r border-stone-700"></td>
                     {players.map((p) => {
                       const stats = getPlayerStats(p);
                       return (
-                        <td key={p.id} className="px-4 py-8 text-4xl scrabble-font text-white drop-shadow-md">
+                        <td key={p.id} className="px-4 py-8 text-4xl scrabble-font text-white drop-shadow-md flex items-center">
                           {stats.totalScore}
                         </td>
                       );
@@ -1086,6 +1099,17 @@ const App: React.FC = () => {
       </main>
 
       <footer className="w-full mt-12 mb-8 px-4 text-center">
+        {/* Regression Test Button */}
+        <div className="mb-4">
+          <button 
+            onClick={handleRunDiagnostics}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95"
+          >
+            <Beaker size={14} />
+            Run UI Diagnostics
+          </button>
+        </div>
+        
         <p className="text-stone-500 text-sm font-medium leading-relaxed max-w-2xl mx-auto">
           Copyright 2026 BitDeserty Studios, a Company of BitDeserty LLC. 
           <span className="hidden sm:inline"> • </span>
