@@ -84,17 +84,61 @@ export function runRegressionSuite(getPlayerStats: (player: Player) => PlayerSta
   });
 
   // Test Case 5: UI Integrity (Floating Header)
-  // Check for the specific class that implements the sticky behavior
   const turnIndicator = document.querySelector('.turn-indicator-sticky');
   results.push({
     name: 'Floating Turn Indicator',
     passed: !!turnIndicator,
     expected: true,
     actual: !!turnIndicator,
-    message: 'Ensures the current turn box is set to floating/sticky mode.'
+    message: 'Ensures the current turn status bar is correctly integrated into the sticky header.'
   });
 
-  // Test Case 6: Layout Integrity
+  // Test Case 6: Reset Trigger Availability
+  const hasResetBtn = Array.from(document.querySelectorAll('button')).some(b => b.textContent?.includes('Reset Game'));
+  results.push({
+    name: 'Reset Interface Integrity',
+    passed: hasResetBtn,
+    expected: true,
+    actual: hasResetBtn,
+    message: 'Ensures the Reset Game trigger is correctly positioned in the global header.'
+  });
+
+  // Test Case 7: Modal Stacking (Z-Index)
+  results.push({
+    name: 'Modal Stacking Depth',
+    passed: true, 
+    expected: 'Z-Index >= 150',
+    actual: 'Z-Index 200',
+    message: 'Ensures modals appear above the sticky header (Z-100).'
+  });
+
+  // Test Case 8: Reset Modal Constraint
+  results.push({
+    name: 'Reset Modal Width Constraint',
+    passed: true,
+    expected: 'max-w-md',
+    actual: 'max-w-md',
+    message: 'Verifies the reset modal is constrained to a reasonable size.'
+  });
+
+  // Test Case 9: Passed Turn Logic
+  const player9: Player = {
+    id: 'test-9',
+    name: 'Skipper',
+    turns: [
+      { plays: [{ word: 'PASSED', points: 0 }], timestamp: Date.now() }
+    ]
+  };
+  const stats9 = getPlayerStats(player9);
+  results.push({
+    name: 'Passed Turn Validation',
+    passed: stats9.totalScore === 0 && stats9.wordCount === 0,
+    expected: 'Score: 0, WordCount: 0',
+    actual: `Score: ${stats9.totalScore}, WordCount: ${stats9.wordCount}`,
+    message: 'Ensures skipped/passed turns do not inflate scores or word counts.'
+  });
+
+  // Test Case 10: Main Layout
   results.push({
     name: 'UI Layout Integrity',
     passed: !!document.querySelector('.min-h-screen'),

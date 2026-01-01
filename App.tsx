@@ -22,7 +22,8 @@ import {
   Plus,
   Loader2,
   Search,
-  Beaker
+  Beaker,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Turn, PlayerStats, Play } from './types';
@@ -59,7 +60,7 @@ const ConfettiParticle: React.FC<{ x: number; y: number; color: string }> = ({ x
         duration: 2 + Math.random() * 1.5,
         ease: "easeOut"
       }}
-      className="fixed z-[200] pointer-events-none"
+      className="fixed z-[250] pointer-events-none"
       style={{
         width: Math.random() * 8 + 4,
         height: Math.random() * 8 + 4,
@@ -111,6 +112,7 @@ const App: React.FC = () => {
   const [isLoadingDef, setIsLoadingDef] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [isSkipConfirmModalOpen, setIsSkipConfirmModalOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [logoError, setLogoError] = useState(false);
@@ -157,7 +159,7 @@ const App: React.FC = () => {
     player.turns.forEach(turn => {
       if (turn) {
         turn.plays.forEach(play => {
-          if (play.word !== '—' && !play.isRemoved) {
+          if (play.word !== 'PASSED' && play.word !== '—' && !play.isRemoved) {
             totalScore += play.points;
             allPlays.push(play);
           }
@@ -316,7 +318,7 @@ const App: React.FC = () => {
   };
 
   const handlePlayClick = (e: React.MouseEvent, playerId: string, roundIdx: number, playIdx: number, play: Play) => {
-    if (play.word === '—' || play.isRemoved) return;
+    if (play.word === 'PASSED' || play.word === '—' || play.isRemoved) return;
     setClickCoords({ x: e.clientX, y: e.clientY });
     setSelectedPlayRef({ playerId, roundIdx, playIdx, play });
     setEditWordValue(play.word);
@@ -435,7 +437,7 @@ const App: React.FC = () => {
       const player = { ...updated[currentPlayerIndex] };
       const newTurns = [...player.turns];
       if (newTurns[roundIdx]) {
-        const filteredPlays = newTurns[roundIdx].plays.filter(p => p.word !== '—');
+        const filteredPlays = newTurns[roundIdx].plays.filter(p => p.word !== 'PASSED' && p.word !== '—');
         newTurns[roundIdx] = {
           ...newTurns[roundIdx],
           plays: [...filteredPlays, newPlay]
@@ -463,7 +465,7 @@ const App: React.FC = () => {
       const player = { ...updated[currentPlayerIndex] };
       const newTurns = [...player.turns];
       newTurns[roundIdx] = { 
-        plays: [{ word: '—', points: 0 }], 
+        plays: [{ word: 'PASSED', points: 0 }], 
         timestamp: Date.now() 
       };
       player.turns = newTurns;
@@ -472,6 +474,7 @@ const App: React.FC = () => {
     });
     
     setIsInputModalOpen(false);
+    setIsSkipConfirmModalOpen(false);
     
     setTimeout(() => {
       setPlayers(current => {
@@ -490,6 +493,16 @@ const App: React.FC = () => {
     setEditingPlayerId(null);
   }, [players.length, currentPlayerIndex, gameRound]);
 
+  const handleEndTurnRequest = () => {
+    const roundIdx = gameRound - 1;
+    const currentPlays = players[currentPlayerIndex].turns[roundIdx]?.plays || [];
+    if (currentPlays.length === 0) {
+      setIsSkipConfirmModalOpen(true);
+    } else {
+      endTurn();
+    }
+  };
+
   const currentPlayer = players[currentPlayerIndex];
   const currentRoundPlays = currentPlayer.turns[gameRound - 1]?.plays || [];
   const roundTotal = currentRoundPlays.reduce((sum, p) => p.isRemoved ? sum : sum + p.points, 0);
@@ -498,7 +511,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-stone-100 pb-12 flex flex-col">
       {confetti && (
-        <div className="fixed inset-0 pointer-events-none z-[200]">
+        <div className="fixed inset-0 pointer-events-none z-[250]">
           {Array.from({ length: 40 }).map((_, i) => (
             <ConfettiParticle 
               key={`${confetti.id}-${i}`} 
@@ -516,313 +529,6 @@ const App: React.FC = () => {
         onClose={() => setIsTestModalOpen(false)}
         results={testResults}
       />
-
-      {/* Play Management Modal */}
-      <AnimatePresence>
-        {selectedPlayRef && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <MotionDiv 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-stone-900/70 backdrop-blur-sm" 
-              onClick={() => setSelectedPlayRef(null)}
-            />
-            <MotionDiv 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-md overflow-hidden"
-            >
-              <div className="bg-amber-500 p-6 text-stone-900 flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-black uppercase tracking-widest opacity-80">Word Options</h3>
-                  <p className="text-3xl font-bold scrabble-font">{selectedPlayRef.play.word}</p>
-                </div>
-                <button onClick={() => setSelectedPlayRef(null)} className="p-2 hover:bg-amber-600 rounded-full transition-colors">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="p-8">
-                {isEditInputActive ? (
-                  <div className="space-y-4 animate-in fade-in zoom-in duration-200">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Word</label>
-                      <input 
-                        type="text" 
-                        value={editWordValue}
-                        onChange={(e) => setEditWordValue(e.target.value.toUpperCase())}
-                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Points</label>
-                      <input 
-                        type="number" 
-                        value={editPointsValue}
-                        onChange={(e) => setEditPointsValue(e.target.value)}
-                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
-                      />
-                    </div>
-                    <div className="flex gap-3 pt-4">
-                      <button onClick={handleEditWord} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Save Changes</button>
-                      <button onClick={() => setIsEditInputActive(false)} className="flex-1 bg-stone-100 text-stone-500 py-3 rounded-xl font-bold hover:bg-stone-200 transition-all">Back</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={() => setIsEditInputActive(true)}
-                      className="flex items-center gap-4 p-5 bg-stone-50 hover:bg-stone-100 rounded-2xl border border-stone-200 transition-all active:scale-95 text-left"
-                    >
-                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                        <Type size={24} />
-                      </div>
-                      <div>
-                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Edit Word</p>
-                        <p className="text-sm text-stone-500">Correct spelling or point value</p>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={handleBingoWord}
-                      className={`flex items-center gap-4 p-5 rounded-2xl border transition-all active:scale-95 text-left ${selectedPlayRef.play.isBingo ? 'bg-amber-100 border-amber-300' : 'bg-stone-50 border-stone-200 hover:bg-stone-100'}`}
-                    >
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${selectedPlayRef.play.isBingo ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}>
-                        <Zap size={24} />
-                      </div>
-                      <div>
-                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Bingo Word</p>
-                        <p className="text-sm text-stone-500">
-                          {selectedPlayRef.play.isBingo ? 'Remove 50pt bonus' : 'Add 50pt bonus'}
-                        </p>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={handleRemoveWord}
-                      className="flex items-center gap-4 p-5 bg-red-50 hover:bg-red-100 rounded-2xl border border-red-100 transition-all active:scale-95 text-left"
-                    >
-                      <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
-                        <Trash2 size={24} />
-                      </div>
-                      <div>
-                        <p className="font-black text-red-800 uppercase text-xs tracking-wider">Remove Word</p>
-                        <p className="text-sm text-red-400">Mark word as removed</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </MotionDiv>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Add Word Modal */}
-      <AnimatePresence>
-        {isInputModalOpen && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <MotionDiv 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-stone-900/80 backdrop-blur-md" 
-              onClick={() => setIsInputModalOpen(false)}
-            />
-            <MotionDiv 
-              initial={{ y: 50, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 50, opacity: 0, scale: 0.95 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              <div className="bg-[#0c1a26] p-8 text-white relative">
-                <div className="absolute top-4 right-4">
-                  <button onClick={() => setIsInputModalOpen(false)} className="p-2 text-stone-400 hover:text-white transition-colors">
-                    <X size={24} />
-                  </button>
-                </div>
-                <div className="flex items-center gap-4 mb-2">
-                  <div className="bg-amber-500 p-2 rounded-xl text-stone-900">
-                    <Plus size={24} />
-                  </div>
-                  <h3 className="text-xl font-black uppercase tracking-widest text-amber-500">Add Words</h3>
-                </div>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-4xl font-bold scrabble-font">{currentPlayer.name}</span>
-                  <span className="text-stone-500 font-bold uppercase text-xs tracking-[0.2em]">Round {gameRound}</span>
-                </div>
-              </div>
-
-              <div className="bg-amber-50/80 p-6 border-b border-amber-100">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Turn Summary</h4>
-                  <div className="flex items-center gap-2 px-3 py-1 bg-amber-200/50 rounded-lg border border-amber-300">
-                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Turn Total</span>
-                    <span className="text-base font-bold text-stone-900">{roundTotal}</span>
-                  </div>
-                </div>
-                
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
-                  {currentRoundPlays.filter(p => p.word !== '—').length > 0 ? (
-                    currentRoundPlays.map((play, idx) => (
-                      <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}>
-                        <span className="text-sm font-black text-stone-800 uppercase">{play.word}</span>
-                        <span className={`text-[10px] font-bold px-1.5 rounded ${play.isBingo ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
-                          {play.points}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-stone-400 italic">No words added to this turn yet.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-8 space-y-6 flex-grow overflow-y-auto">
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center ml-1">
-                      <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em]">Word Played</label>
-                      
-                      {/* Unified Legality & Verification Area */}
-                      {WORD_CHECKER !== 'NONE' && wordInput.trim().length >= 2 && (
-                        <div className="flex items-center gap-2">
-                          {legalityStatus === 'none' && !isLoadingDef ? (
-                            <button
-                              onClick={handleVerifyWord}
-                              className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg border border-amber-300 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
-                            >
-                              <Search size={12} />
-                              Verify Word
-                            </button>
-                          ) : (
-                            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ${
-                              legalityStatus === 'loading' ? 'text-amber-500' : 
-                              legalityStatus === 'legal' ? 'text-green-600' : 
-                              legalityStatus === 'illegal' ? 'text-red-500' : 'text-stone-400'
-                            }`}>
-                              {legalityStatus === 'loading' ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : legalityStatus === 'legal' ? (
-                                <Check size={12} />
-                              ) : (
-                                <X size={12} />
-                              )}
-                              {legalityStatus === 'loading' ? 'Verifying...' : 
-                               legalityStatus === 'legal' ? 'Legal' : 
-                               legalityStatus === 'illegal' ? 'Not Legal' : ''}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <input
-                      autoFocus
-                      type="text"
-                      value={wordInput}
-                      onChange={(e) => {
-                        setWordInput(e.target.value.toUpperCase());
-                        if (WORD_CHECKER === 'AI') setDefinition(null); // Reset result on change
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && submitWord()}
-                      placeholder="e.g. LEXICON"
-                      className={`w-full bg-stone-50 border-2 rounded-2xl px-5 py-4 text-xl font-bold tracking-widest focus:ring-4 transition-all outline-none ${
-                        legalityStatus === 'legal' 
-                          ? 'border-green-200 focus:ring-green-500/10 focus:border-green-500' 
-                          : legalityStatus === 'illegal'
-                            ? 'border-red-200 focus:ring-red-500/10 focus:border-red-500'
-                            : 'border-stone-200 focus:ring-amber-500/10 focus:border-amber-500'
-                      }`}
-                    />
-                    {wordListStatus === 'error' && WORD_CHECKER === 'LOCAL' && (
-                      <p className="text-[10px] text-red-400 italic">Error loading dictionary. Check console.</p>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em] ml-1">Points</label>
-                    <input
-                      type="number"
-                      value={pointsInput}
-                      onChange={(e) => setPointsInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && submitWord()}
-                      placeholder="0"
-                      className="w-full bg-stone-50 border-2 border-stone-200 rounded-2xl px-5 py-4 text-2xl font-bold focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 transition-all outline-none"
-                    />
-                  </div>
-                </div>
-
-                {WORD_CHECKER === 'AI' && (definition || isLoadingDef) && (
-                  <div className="p-5 bg-stone-50 rounded-2xl border border-amber-200/50 flex gap-4 shadow-sm">
-                    <div className="bg-amber-100 p-2 rounded-lg h-fit shrink-0">
-                      <Info className="text-amber-700" size={20} />
-                    </div>
-                    <div>
-                      <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1.5">AI Word Insight</h4>
-                      {isLoadingDef ? (
-                        <div className="flex gap-1.5 py-1">
-                          <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce delay-100"></div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-stone-700 italic leading-relaxed">
-                          {definition.replace(/^(VALID|INVALID)\s*:\s*/i, '')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-8 bg-stone-50 border-t border-stone-100 flex gap-4">
-                <button
-                  onClick={submitWord}
-                  disabled={!wordInput || !pointsInput}
-                  className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-stone-900 py-5 rounded-2xl font-black text-xl shadow-xl shadow-amber-900/20 transition-all flex items-center justify-center gap-2 border-b-4 border-amber-800 active:border-b-0 active:translate-y-1"
-                >
-                  <Plus size={24} />
-                  ADD WORD
-                </button>
-                
-                <button
-                  onClick={endTurn}
-                  className="flex-1 bg-[#0c1a26] hover:bg-[#1a2e40] text-amber-500 py-5 rounded-2xl font-black text-xl transition-all flex items-center justify-center gap-2 shadow-xl border-b-4 border-black active:border-b-0 active:translate-y-1"
-                >
-                  <SkipForward size={24} />
-                  END TURN
-                </button>
-              </div>
-            </MotionDiv>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {isResetModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
-            onClick={() => setIsResetModalOpen(false)}
-          />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500">
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <AlertTriangle className="text-amber-600" size={32} />
-              </div>
-              <h3 className="text-3xl font-bold scrabble-font text-stone-900 mb-3">Reset Game?</h3>
-              <p className="text-stone-500 leading-relaxed mb-8">
-                Are you sure you want to clear all scores? This action will permanently erase current progress.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button onClick={() => setIsResetModalOpen(false)} className="flex-1 px-6 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-2xl font-bold transition-all active:scale-95">No, Keep Playing</button>
-                <button onClick={performReset} className="flex-1 px-6 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-200 transition-all active:scale-95">Yes, Reset All</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Pinned Header & Turn Status Bar */}
       <div className="sticky top-0 z-[100] flex flex-col shadow-2xl">
@@ -877,7 +583,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Floating Current Turn Bar */}
-        <div className="bg-[#0c1a26]/95 backdrop-blur-md border-b-8 border-amber-600 py-3">
+        <div className="turn-indicator-sticky bg-[#0c1a26]/95 backdrop-blur-md border-b-8 border-amber-600 py-3">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
             <div className="flex items-baseline gap-4">
               <span className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Current Turn</span>
@@ -993,6 +699,15 @@ const App: React.FC = () => {
                                     );
                                   }
                                   
+                                  if (play.word === 'PASSED') {
+                                    return (
+                                      <div key={playIdx} className="flex items-center justify-between w-full p-1.5 rounded-lg bg-stone-100/50 border border-stone-200 opacity-60">
+                                        <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest italic">PASSED</span>
+                                        <span className="text-[10px] font-black text-stone-300">0</span>
+                                      </div>
+                                    );
+                                  }
+
                                   return (
                                     <button 
                                       key={playIdx} 
@@ -1019,7 +734,7 @@ const App: React.FC = () => {
                                   );
                                 })}
                                 
-                                {turn.plays.filter(pl => !pl.isRemoved).length > 1 && (
+                                {turn.plays.filter(pl => !pl.isRemoved && pl.word !== 'PASSED').length > 1 && (
                                   <div className="mt-1 pt-1 border-t border-amber-100 flex justify-end">
                                     <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-200">
                                       <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter">SUM</span>
@@ -1118,6 +833,324 @@ const App: React.FC = () => {
         </p>
       </footer>
       
+      {/* Modals and Overlays - Moved to bottom of tree for stacking reliability */}
+      <AnimatePresence>
+        {selectedPlayRef && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 modal-overlay-container">
+            <MotionDiv 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-stone-900/70 backdrop-blur-sm" 
+              onClick={() => setSelectedPlayRef(null)}
+            />
+            <MotionDiv 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="bg-amber-500 p-6 text-stone-900 flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest opacity-80">Word Options</h3>
+                  <p className="text-3xl font-bold scrabble-font">{selectedPlayRef.play.word}</p>
+                </div>
+                <button onClick={() => setSelectedPlayRef(null)} className="p-2 hover:bg-amber-600 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-8">
+                {isEditInputActive ? (
+                  <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Word</label>
+                      <input 
+                        type="text" 
+                        value={editWordValue}
+                        onChange={(e) => setEditWordValue(e.target.value.toUpperCase())}
+                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Update Points</label>
+                      <input 
+                        type="number" 
+                        value={editPointsValue}
+                        onChange={(e) => setEditPointsValue(e.target.value)}
+                        className="w-full bg-stone-50 border-2 border-amber-400 rounded-xl px-4 py-3 text-xl font-bold outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button onClick={handleEditWord} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all active:scale-95">Save Changes</button>
+                      <button onClick={() => setIsEditInputActive(false)} className="flex-1 bg-stone-100 text-stone-500 py-3 rounded-xl font-bold hover:bg-stone-200 transition-all">Back</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    <button 
+                      onClick={() => setIsEditInputActive(true)}
+                      className="flex items-center gap-4 p-5 bg-stone-50 hover:bg-stone-100 rounded-2xl border border-stone-200 transition-all active:scale-95 text-left"
+                    >
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                        <Type size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Edit Word</p>
+                        <p className="text-sm text-stone-500">Correct spelling or point value</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={handleBingoWord}
+                      className={`flex items-center gap-4 p-5 rounded-2xl border transition-all active:scale-95 text-left ${selectedPlayRef.play.isBingo ? 'bg-amber-100 border-amber-300' : 'bg-stone-50 border-stone-200 hover:bg-stone-100'}`}
+                    >
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${selectedPlayRef.play.isBingo ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}>
+                        <Zap size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-stone-800 uppercase text-xs tracking-wider">Bingo Word</p>
+                        <p className="text-sm text-stone-500">
+                          {selectedPlayRef.play.isBingo ? 'Remove 50pt bonus' : 'Add 50pt bonus'}
+                        </p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={handleRemoveWord}
+                      className="flex items-center gap-4 p-5 bg-red-50 hover:bg-red-100 rounded-2xl border border-red-100 transition-all active:scale-95 text-left"
+                    >
+                      <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                        <Trash2 size={24} />
+                      </div>
+                      <div>
+                        <p className="font-black text-red-800 uppercase text-xs tracking-wider">Remove Word</p>
+                        <p className="text-sm text-red-400">Mark word as removed</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </MotionDiv>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isInputModalOpen && (
+          <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 modal-overlay-container">
+            <MotionDiv 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-stone-900/80 backdrop-blur-md" 
+              onClick={() => setIsInputModalOpen(false)}
+            />
+            <MotionDiv 
+              initial={{ y: 50, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 50, opacity: 0, scale: 0.95 }}
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="bg-[#0c1a26] p-8 text-white relative">
+                <div className="absolute top-4 right-4">
+                  <button onClick={() => setIsInputModalOpen(false)} className="p-2 text-stone-400 hover:text-white transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="bg-amber-500 p-2 rounded-xl text-stone-900">
+                    <Plus size={24} />
+                  </div>
+                  <h3 className="text-xl font-black uppercase tracking-widest text-amber-500">Add Words</h3>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-4xl font-bold scrabble-font">{currentPlayer.name}</span>
+                  <span className="text-stone-500 font-bold uppercase text-xs tracking-[0.2em]">Round {gameRound}</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/80 p-6 border-b border-amber-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Turn Summary</h4>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-amber-200/50 rounded-lg border border-amber-300">
+                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Turn Total</span>
+                    <span className="text-base font-bold text-stone-900">{roundTotal}</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1">
+                  {currentRoundPlays.filter(p => p.word !== 'PASSED' && p.word !== '—').length > 0 ? (
+                    currentRoundPlays.map((play, idx) => (
+                      <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}>
+                        <span className="text-sm font-black text-stone-800 uppercase">{play.word}</span>
+                        <span className={`text-[10px] font-bold px-1.5 rounded ${play.isBingo ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
+                          {play.points}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-stone-400 italic">No words added to this turn yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-8 space-y-6 flex-grow overflow-y-auto">
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center ml-1">
+                      <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em]">Word Played</label>
+                      {WORD_CHECKER !== 'NONE' && wordInput.trim().length >= 2 && (
+                        <div className="flex items-center gap-2">
+                          {legalityStatus === 'none' && !isLoadingDef ? (
+                            <button
+                              onClick={handleVerifyWord}
+                              className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg border border-amber-300 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                            >
+                              <Search size={12} />
+                              Verify Word
+                            </button>
+                          ) : (
+                            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-colors duration-300 ${
+                              legalityStatus === 'loading' ? 'text-amber-500' : 
+                              legalityStatus === 'legal' ? 'text-green-600' : 
+                              legalityStatus === 'illegal' ? 'text-red-500' : 'text-stone-400'
+                            }`}>
+                              {legalityStatus === 'loading' ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : legalityStatus === 'legal' ? (
+                                <Check size={12} />
+                              ) : (
+                                <X size={12} />
+                              )}
+                              {legalityStatus === 'loading' ? 'Verifying...' : 
+                               legalityStatus === 'legal' ? 'Legal' : 
+                               legalityStatus === 'illegal' ? 'Not Legal' : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={wordInput}
+                      onChange={(e) => {
+                        setWordInput(e.target.value.toUpperCase());
+                        if (WORD_CHECKER === 'AI') setDefinition(null);
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && submitWord()}
+                      placeholder="e.g. LEXICON"
+                      className={`w-full bg-stone-50 border-2 rounded-2xl px-5 py-4 text-xl font-bold tracking-widest focus:ring-4 transition-all outline-none ${
+                        legalityStatus === 'legal' 
+                          ? 'border-green-200 focus:ring-green-500/10 focus:border-green-500' 
+                          : legalityStatus === 'illegal'
+                            ? 'border-red-200 focus:ring-red-500/10 focus:border-red-500'
+                            : 'border-stone-200 focus:ring-amber-500/10 focus:border-amber-500'
+                      }`}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-stone-500 uppercase tracking-[0.2em] ml-1">Points</label>
+                    <input
+                      type="number"
+                      value={pointsInput}
+                      onChange={(e) => setPointsInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && submitWord()}
+                      placeholder="0"
+                      className="w-full bg-stone-50 border-2 border-stone-200 rounded-2xl px-5 py-4 text-2xl font-bold focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 transition-all outline-none"
+                    />
+                  </div>
+                </div>
+                {WORD_CHECKER === 'AI' && (definition || isLoadingDef) && (
+                  <div className="p-5 bg-stone-50 rounded-2xl border border-amber-200/50 flex gap-4 shadow-sm">
+                    <div className="bg-amber-100 p-2 rounded-lg h-fit shrink-0">
+                      <Info className="text-amber-700" size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1.5">AI Word Insight</h4>
+                      {isLoadingDef ? (
+                        <div className="flex gap-1.5 py-1">
+                          <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce delay-100"></div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-stone-700 italic leading-relaxed">
+                          {definition.replace(/^(VALID|INVALID)\s*:\s*/i, '')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-8 bg-stone-50 border-t border-stone-100 flex gap-4">
+                <button
+                  onClick={submitWord}
+                  disabled={!wordInput || !pointsInput}
+                  className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-stone-900 py-5 rounded-2xl font-black text-xl shadow-xl shadow-amber-900/20 transition-all flex items-center justify-center gap-2 border-b-4 border-amber-800 active:border-b-0 active:translate-y-1"
+                >
+                  <Plus size={24} /> ADD WORD
+                </button>
+                <button
+                  onClick={handleEndTurnRequest}
+                  className="flex-1 bg-[#0c1a26] hover:bg-[#1a2e40] text-amber-500 py-5 rounded-2xl font-black text-xl transition-all flex items-center justify-center gap-2 shadow-xl border-b-4 border-black active:border-b-0 active:translate-y-1"
+                >
+                  <SkipForward size={24} /> END TURN
+                </button>
+              </div>
+            </MotionDiv>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 modal-overlay-container">
+          <div 
+            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsResetModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-amber-500 reset-modal-content">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle className="text-amber-600" size={32} />
+              </div>
+              <h3 className="text-3xl font-bold scrabble-font text-stone-900 mb-3">Reset Game?</h3>
+              <p className="text-stone-500 leading-relaxed mb-8">
+                Are you sure you want to clear all scores? This action will permanently erase current progress.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button onClick={() => setIsResetModalOpen(false)} className="flex-1 px-6 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-2xl font-bold transition-all active:scale-95">No, Keep Playing</button>
+                <button onClick={performReset} className="flex-1 px-6 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold shadow-lg shadow-red-200 transition-all active:scale-95">Yes, Reset All</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSkipConfirmModalOpen && (
+        <div className="fixed inset-0 z-[230] flex items-center justify-center p-4 modal-overlay-container">
+          <div 
+            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsSkipConfirmModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in zoom-in fade-in duration-200 border-t-8 border-blue-500">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <SkipForward className="text-blue-600" size={32} />
+              </div>
+              <h3 className="text-3xl font-bold scrabble-font text-stone-900 mb-3">End Turn?</h3>
+              <p className="text-stone-500 leading-relaxed mb-8">
+                You haven't entered any words yet. Ending your turn now will mark this round as <b>Passed</b>.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button onClick={() => setIsSkipConfirmModalOpen(false)} className="flex-1 px-6 py-4 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-2xl font-bold transition-all active:scale-95">Back to Input</button>
+                <button onClick={endTurn} className="flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-95">Yes, End Turn</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
