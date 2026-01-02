@@ -36,7 +36,7 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
     </div>
     <div className="overflow-auto flex-grow custom-scrollbar flex flex-col">
       <table className="w-full text-left border-collapse min-w-[600px] h-full flex flex-col">
-        <thead className="block bg-stone-50 border-b border-stone-200">
+        <thead className="block bg-stone-50 border-b border-stone-200 text-stone-900">
           <tr className="grid" style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
             <th className="px-4 py-5 text-center text-stone-400 border-r border-stone-100 flex items-center justify-center"><Hash size={16} className="opacity-40" /></th>
             {players.map((p, idx) => (
@@ -51,7 +51,7 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                     onChange={(e) => onSetNameValue(e.target.value)} 
                     onKeyDown={(e) => { if (e.key === 'Enter') onSaveName(); if (e.key === 'Escape') onCancelEditName(); }} 
                     onBlur={onSaveName} 
-                    className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-800 font-bold outline-none" 
+                    className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-900 font-bold outline-none shadow-sm" 
                   />
                 ) : (
                   <div className="flex items-center justify-between gap-3 w-full group">
@@ -82,32 +82,39 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
 
                 return (
                   <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative flex flex-col justify-center ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
-                    {turn ? (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-col gap-1">
-                          {turn.plays.map((play, playIdx) => (
-                            <button key={playIdx} onClick={(e) => onPlayClick(e, p.id, roundIdx, playIdx, play)} className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-colors ${play.word === 'PASSED' || play.word === '—' ? 'cursor-default pointer-events-none opacity-60' : 'cursor-pointer'}`}>
-                              <span className={`text-sm uppercase tracking-wide ${play.word === '—' || play.word === 'PASSED' ? 'text-stone-400 italic' : play.isBingo ? 'text-amber-700 font-black underline decoration-amber-300' : 'text-stone-800 font-bold'}`}>{play.word}{play.isRemoved ? ' (RM)' : ''}</span>
-                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">{play.points}</span>
-                            </button>
-                          ))}
-                        </div>
-                        
-                        {/* Turn Subtotal Indicator */}
-                        {hasMultiplePlays && (
-                          <div className="mt-1 pt-1 border-t border-stone-100 flex justify-between items-center px-1.5">
-                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter">Turn Total</span>
-                            <span className="text-xs font-black text-stone-900 bg-amber-100/50 px-1.5 rounded">{turnTotal}</span>
+                    <div className="flex flex-col gap-2">
+                      {turn && (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            {turn.plays.map((play, playIdx) => (
+                              <button key={playIdx} onClick={(e) => onPlayClick(e, p.id, roundIdx, playIdx, play)} className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-colors ${play.word === 'PASSED' || play.word === '—' ? 'cursor-default pointer-events-none opacity-60' : 'cursor-pointer'}`}>
+                                <span className={`text-sm uppercase tracking-wide ${play.word === '—' || play.word === 'PASSED' ? 'text-stone-400 italic' : play.isBingo ? 'text-amber-700 font-black underline decoration-amber-300' : 'text-stone-800 font-bold'}`}>{play.word}{play.isRemoved ? ' (RM)' : ''}</span>
+                                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">{play.points}</span>
+                              </button>
+                            ))}
                           </div>
-                        )}
-                      </div>
-                    ) : isCurrentTurnCell ? (
-                      <div ref={activeCellRef} className="animate-in fade-in slide-in-from-top-2 duration-500">
-                        <button onClick={onOpenAddWord} className="w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 group">
-                          <Plus size={20} className="group-hover:rotate-90 transition-transform" /><span className="text-[10px] font-black uppercase">Add Words</span>
-                        </button>
-                      </div>
-                    ) : <span className="text-stone-200 text-xl font-light opacity-50">—</span>}
+                          
+                          {/* Turn Subtotal Indicator */}
+                          {hasMultiplePlays && (
+                            <div className="mt-1 pt-1 border-t border-stone-100 flex justify-between items-center px-1.5">
+                              <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter">Turn Total</span>
+                              <span className="text-xs font-black text-stone-900 bg-amber-100/50 px-1.5 rounded">{turnTotal}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {isCurrentTurnCell && (
+                        <div ref={activeCellRef} className="animate-in fade-in slide-in-from-top-2 duration-500">
+                          <button onClick={onOpenAddWord} className={`w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 group ${turn ? 'mt-2 opacity-60 hover:opacity-100' : ''}`}>
+                            <Plus size={20} className="group-hover:rotate-90 transition-transform" />
+                            <span className="text-[10px] font-black uppercase">{turn ? "Add More" : "Add Words"}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {!turn && !isCurrentTurnCell && <span className="text-stone-200 text-xl font-light opacity-50">—</span>}
+                    </div>
                   </td>
                 );
               })}

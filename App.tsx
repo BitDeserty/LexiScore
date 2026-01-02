@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const {
     players, currentPlayerIndex, gameRound, getPlayerStats,
     addPlayer, removePlayer, updatePlayerName, resetGame,
-    addWordToTurn, endTurn, modifyPlay
+    addWordToTurn, removeWordFromTurn, endTurn, modifyPlay
   } = useScrabbleGame();
 
   // UI States
@@ -64,7 +64,7 @@ const App: React.FC = () => {
   const MotionDiv = motion.div as any;
 
   return (
-    <div className="min-h-screen bg-stone-100 pb-12 flex flex-col">
+    <div className="min-h-screen bg-stone-100 pb-12 flex flex-col text-stone-900">
       <TestModal isOpen={isTestModalOpen} onClose={() => setIsTestModalOpen(false)} results={testResults} />
 
       <div className="sticky top-0 z-[100] shadow-xl shadow-stone-900/10">
@@ -131,6 +131,7 @@ const App: React.FC = () => {
         playerName={players[currentPlayerIndex].name} 
         gameRound={gameRound} 
         onAddWord={addWordToTurn} 
+        onRemoveWord={removeWordFromTurn}
         onEndTurn={handleEndTurnRequest}
         currentPlays={players[currentPlayerIndex].turns[gameRound - 1]?.plays || []}
       />

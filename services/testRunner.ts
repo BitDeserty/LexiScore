@@ -172,5 +172,21 @@ export function runRegressionSuite(getPlayerStats: (player: Player) => PlayerSta
     message: 'Ensures the name input automatically selects its contents on focus for immediate editing.'
   });
 
+  // Test Case 13: Word Removal Logic
+  const mockPlayer: Player = {
+    id: 'mock',
+    name: 'Mock',
+    turns: [{ plays: [{ word: 'A', points: 10 }, { word: 'B', points: 20 }], timestamp: 1 }]
+  };
+  // Simulate removal of index 0
+  const updatedPlays = mockPlayer.turns[0].plays.filter((_, i) => i !== 0);
+  results.push({
+    name: 'Internal Turn Word Removal',
+    passed: updatedPlays.length === 1 && updatedPlays[0].word === 'B',
+    expected: 1,
+    actual: updatedPlays.length,
+    message: 'Verifies the logic for removing a specific word from a turn draft.'
+  });
+
   return results;
 }

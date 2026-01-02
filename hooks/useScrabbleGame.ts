@@ -111,6 +111,22 @@ export const useScrabbleGame = () => {
     persist(updated, currentPlayerIndex, gameRound);
   }, [players, currentPlayerIndex, gameRound]);
 
+  const removeWordFromTurn = useCallback((playIndex: number) => {
+    const roundIdx = gameRound - 1;
+    const updated = [...players];
+    const player = { ...updated[currentPlayerIndex] };
+    const newTurns = [...player.turns];
+    if (newTurns[roundIdx]) {
+      const newPlays = [...newTurns[roundIdx].plays];
+      newPlays.splice(playIndex, 1);
+      newTurns[roundIdx] = { ...newTurns[roundIdx], plays: newPlays };
+      player.turns = newTurns;
+      updated[currentPlayerIndex] = player;
+      setPlayers(updated);
+      persist(updated, currentPlayerIndex, gameRound);
+    }
+  }, [players, currentPlayerIndex, gameRound]);
+
   const endTurn = useCallback((isPass: boolean = false) => {
     const roundIdx = gameRound - 1;
     const updated = [...players];
@@ -138,6 +154,7 @@ export const useScrabbleGame = () => {
       if (p.id !== playerId) return p;
       const newTurns = [...p.turns];
       const turn = { ...newTurns[roundIdx] };
+      if (!turn || !turn.plays) return p;
       const newPlays = [...turn.plays];
       newPlays[playIdx] = { ...newPlays[playIdx], ...updates };
       newTurns[roundIdx] = { ...turn, plays: newPlays };
@@ -157,6 +174,7 @@ export const useScrabbleGame = () => {
     updatePlayerName,
     resetGame,
     addWordToTurn,
+    removeWordFromTurn,
     endTurn,
     modifyPlay
   };

@@ -18,10 +18,14 @@ const ModalWrapper: React.FC<{ children: React.ReactNode; onClose: () => void; z
   </div>
 );
 
+/**
+ * Modal to add words and points for a player's turn.
+ */
 export const AddWordModal: React.FC<{
   isOpen: boolean; onClose: () => void; playerName: string; gameRound: number; 
-  onAddWord: (w: string, p: number) => void; onEndTurn: () => void; currentPlays: Play[];
-}> = ({ isOpen, onClose, playerName, gameRound, onAddWord, onEndTurn, currentPlays }) => {
+  onAddWord: (w: string, p: number) => void; onRemoveWord: (idx: number) => void;
+  onEndTurn: () => void; currentPlays: Play[];
+}> = ({ isOpen, onClose, playerName, gameRound, onAddWord, onRemoveWord, onEndTurn, currentPlays }) => {
   const [wordInput, setWordInput] = useState('');
   const [pointsInput, setPointsInput] = useState('');
   const [definition, setDefinition] = useState<string | null>(null);
@@ -42,6 +46,13 @@ export const AddWordModal: React.FC<{
     const res = await defineWord(wordInput);
     setDefinition(res);
     setIsLoadingDef(false);
+  };
+
+  const handleEditFromSummary = (play: Play, originalIndex: number) => {
+    setWordInput(play.word);
+    setPointsInput(play.points.toString());
+    setDefinition(null);
+    onRemoveWord(originalIndex);
   };
 
   // Determine legality based on AI response format
@@ -79,12 +90,18 @@ export const AddWordModal: React.FC<{
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
                 {displayPlays.length > 0 ? (
                   displayPlays.map((play, idx) => (
-                    <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}>
+                    <button 
+                      key={idx} 
+                      onClick={() => handleEditFromSummary(play, idx)}
+                      title="Click to edit"
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all hover:scale-105 active:scale-95 group ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}
+                    >
                       <span className="text-sm font-black text-stone-800 uppercase">{play.word}</span>
                       <span className={`text-[10px] font-bold px-1.5 rounded ${play.isBingo ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
                         {play.points}
                       </span>
-                    </div>
+                      <Pencil size={10} className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
                   ))
                 ) : (
                   <p className="text-xs text-stone-400 italic">No words added to this turn yet.</p>
@@ -135,7 +152,7 @@ export const AddWordModal: React.FC<{
                     setWordInput(e.target.value.toUpperCase());
                     setDefinition(null); // Reset verification status on change
                   }} 
-                  className={`w-full border-2 p-4 rounded-2xl text-xl font-bold transition-all focus:outline-none ${
+                  className={`w-full border-2 p-4 rounded-2xl text-xl font-bold transition-all focus:outline-none bg-white text-stone-900 ${
                     isLegal ? 'border-green-500 bg-green-50/30' : 
                     isIllegal ? 'border-red-500 bg-red-50/30' : 
                     'border-stone-200 focus:border-amber-500'
@@ -150,7 +167,7 @@ export const AddWordModal: React.FC<{
                     value={pointsInput} 
                     onChange={(e) => setPointsInput(e.target.value)} 
                     onKeyDown={(e) => { if(e.key === 'Enter') handleSubmit(); }}
-                    className="w-full border-2 p-4 rounded-2xl text-xl font-bold focus:outline-none focus:border-amber-500" 
+                    className="w-full border-2 p-4 rounded-2xl text-xl font-bold focus:outline-none focus:border-amber-500 bg-white text-stone-900" 
                     placeholder="Points" 
                   />
                 </div>
@@ -192,6 +209,9 @@ export const AddWordModal: React.FC<{
   );
 };
 
+/**
+ * Modal to confirm resetting the entire game.
+ */
 export const ResetModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void }> = ({ isOpen, onClose, onConfirm }) => (
   <AnimatePresence>
     {isOpen && (
@@ -201,7 +221,7 @@ export const ResetModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
           <h3 className="text-3xl font-bold mb-2">Reset Game?</h3>
           <p className="text-stone-500 mb-8">This will clear all scores and progress.</p>
           <div className="flex gap-4">
-            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold">Cancel</button>
+            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900">Cancel</button>
             <button onClick={onConfirm} className="flex-1 bg-red-600 text-white py-4 rounded-xl font-bold">Reset All</button>
           </div>
         </MotionDiv>
@@ -210,6 +230,9 @@ export const ResetModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
   </AnimatePresence>
 );
 
+/**
+ * Modal to confirm skipping a turn when no words are added.
+ */
 export const SkipConfirmModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void }> = ({ isOpen, onClose, onConfirm }) => (
   <AnimatePresence>
     {isOpen && (
@@ -219,7 +242,7 @@ export const SkipConfirmModal: React.FC<{ isOpen: boolean; onClose: () => void; 
           <h3 className="text-3xl font-bold mb-2">Skip Turn?</h3>
           <p className="text-stone-500 mb-8">No words were entered. Mark this turn as PASSED?</p>
           <div className="flex gap-4">
-            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold">Back</button>
+            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900">Back</button>
             <button onClick={onConfirm} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">Confirm Pass</button>
           </div>
         </MotionDiv>
@@ -228,6 +251,9 @@ export const SkipConfirmModal: React.FC<{ isOpen: boolean; onClose: () => void; 
   </AnimatePresence>
 );
 
+/**
+ * Modal to modify or remove an existing play.
+ */
 export const PlayOptionsModal: React.FC<{
   selectedPlay: { playerId: string, roundIdx: number, playIdx: number, play: Play };
   onClose: () => void;
@@ -284,7 +310,7 @@ export const PlayOptionsModal: React.FC<{
                   type="text" 
                   value={editWord} 
                   onChange={(e) => setEditWord(e.target.value.toUpperCase())}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                 />
               </div>
               <div className="space-y-2">
@@ -293,7 +319,7 @@ export const PlayOptionsModal: React.FC<{
                   type="number" 
                   value={editPoints} 
                   onChange={(e) => setEditPoints(e.target.value)}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                 />
               </div>
               <div className="flex gap-4 pt-2">
