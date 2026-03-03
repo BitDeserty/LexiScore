@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, SkipForward, AlertTriangle, Type, Zap, Trash2, Search, Check, Loader2, Info, Pencil } from 'lucide-react';
+import { X, Plus, SkipForward, AlertTriangle, Zap, Trash2, Search, Check, Loader2, Info, Pencil, RotateCcw } from 'lucide-react';
 import { Play } from '../types';
 import { defineWord } from '../services/geminiService';
 import confetti from 'canvas-confetti';
@@ -218,11 +218,11 @@ export const ResetModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
       <ModalWrapper onClose={onClose}>
         <MotionDiv initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 text-center border-t-8 border-amber-500">
           <AlertTriangle className="mx-auto text-amber-600 mb-4" size={48} />
-          <h3 className="text-3xl font-bold mb-2">Reset Game?</h3>
-          <p className="text-stone-500 mb-8">This will clear all scores and progress.</p>
+          <h3 className="text-3xl font-bold mb-2 text-stone-800">Reset Game?</h3>
+          <p className="text-stone-500 mb-8">This will clear all scores and progress. This action cannot be undone.</p>
           <div className="flex gap-4">
-            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900">Cancel</button>
-            <button onClick={onConfirm} className="flex-1 bg-red-600 text-white py-4 rounded-xl font-bold">Reset All</button>
+            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900 hover:bg-stone-200 transition-colors">Cancel</button>
+            <button onClick={onConfirm} className="flex-1 bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 transition-colors">Reset All</button>
           </div>
         </MotionDiv>
       </ModalWrapper>
@@ -239,11 +239,11 @@ export const SkipConfirmModal: React.FC<{ isOpen: boolean; onClose: () => void; 
       <ModalWrapper onClose={onClose}>
         <MotionDiv initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 text-center border-t-8 border-blue-500">
           <SkipForward className="mx-auto text-blue-600 mb-4" size={48} />
-          <h3 className="text-3xl font-bold mb-2">Skip Turn?</h3>
+          <h3 className="text-3xl font-bold mb-2 text-stone-800">Skip Turn?</h3>
           <p className="text-stone-500 mb-8">No words were entered. Mark this turn as PASSED?</p>
           <div className="flex gap-4">
-            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900">Back</button>
-            <button onClick={onConfirm} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">Confirm Pass</button>
+            <button onClick={onClose} className="flex-1 bg-stone-100 py-4 rounded-xl font-bold text-stone-900 hover:bg-stone-200 transition-colors">Back</button>
+            <button onClick={onConfirm} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors">Confirm Pass</button>
           </div>
         </MotionDiv>
       </ModalWrapper>
@@ -273,13 +273,12 @@ export const PlayOptionsModal: React.FC<{
     const isEnabling = !selectedPlay.play.isBingo;
     
     if (isEnabling) {
-      const rect = e.currentTarget.getBoundingClientRect();
       confetti({
-        particleCount: 80,
+        particleCount: 100,
         spread: 70,
         origin: { 
-          x: (rect.left + rect.width / 2) / window.innerWidth,
-          y: (rect.top + rect.height / 2) / window.innerHeight 
+          x: 0.5,
+          y: 0.5 
         },
         colors: ['#f59e0b', '#fbbf24', '#ffffff', '#d97706'],
         disableForReducedMotion: true

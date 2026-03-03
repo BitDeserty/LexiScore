@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ClipboardList, Hash, Pencil, X, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, Hash, Pencil, X, Plus, RotateCcw } from 'lucide-react';
 import { Player, Play, PlayerStats } from '../types';
 
 interface ScoreSheetProps {
@@ -51,7 +51,7 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                     onChange={(e) => onSetNameValue(e.target.value)} 
                     onKeyDown={(e) => { if (e.key === 'Enter') onSaveName(); if (e.key === 'Escape') onCancelEditName(); }} 
                     onBlur={onSaveName} 
-                    className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-900 font-bold outline-none shadow-sm" 
+                    className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-900 font-bold outline-none shadow-sm placeholder-stone-400" 
                   />
                 ) : (
                   <div className="flex items-center justify-between gap-3 w-full group">
@@ -81,16 +81,36 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                 const hasMultiplePlays = (turn?.plays.length || 0) > 1;
 
                 return (
-                  <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative flex flex-col justify-center ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
-                    <div className="flex flex-col gap-2">
+                  <td key={p.id} className={`px-4 py-5 border-l border-stone-50/50 relative flex flex-col justify-start min-h-[120px] ${isCurrentTurnCell ? 'bg-amber-100/20 ring-inset ring-2 ring-amber-500/20' : ''}`}>
+                    <div className="flex flex-col gap-2 h-full">
                       {turn && (
                         <>
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-1.5">
                             {turn.plays.map((play, playIdx) => (
-                              <button key={playIdx} onClick={(e) => onPlayClick(e, p.id, roundIdx, playIdx, play)} className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-colors ${play.word === 'PASSED' || play.word === '—' ? 'cursor-default pointer-events-none opacity-60' : 'cursor-pointer'}`}>
-                                <span className={`text-sm uppercase tracking-wide ${play.word === '—' || play.word === 'PASSED' ? 'text-stone-400 italic' : play.isBingo ? 'text-amber-700 font-black underline decoration-amber-300' : 'text-stone-800 font-bold'}`}>{play.word}{play.isRemoved ? ' (RM)' : ''}</span>
-                                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">{play.points}</span>
-                              </button>
+                              <div key={playIdx}>
+                                {play.isRemoved ? (
+                                  <div className="flex items-center justify-between w-full p-1.5 rounded-lg bg-red-50/80 border border-red-100 shadow-sm transition-all">
+                                    <span className="text-sm line-through text-stone-400 uppercase tracking-wide truncate pr-2">{play.word}</span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-[8px] font-black px-1 py-0.5 rounded bg-red-600 text-white uppercase tracking-tighter">Removed</span>
+                                      <button 
+                                        onClick={() => onUndoRemove(p.id, roundIdx, playIdx)}
+                                        className="text-[9px] font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-0.5"
+                                      >
+                                        <RotateCcw size={10} /> Undo
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button 
+                                    onClick={(e) => onPlayClick(e, p.id, roundIdx, playIdx, play)} 
+                                    className={`flex items-center justify-between w-full text-left p-1.5 rounded-lg hover:bg-stone-100/80 transition-colors ${play.word === 'PASSED' || play.word === '—' ? 'cursor-default pointer-events-none opacity-60' : 'cursor-pointer'}`}
+                                  >
+                                    <span className={`text-sm uppercase tracking-wide ${play.word === '—' || play.word === 'PASSED' ? 'text-stone-400 italic' : play.isBingo ? 'text-amber-700 font-black underline decoration-amber-300' : 'text-stone-800 font-bold'}`}>{play.word}</span>
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">{play.points}</span>
+                                  </button>
+                                )}
+                              </div>
                             ))}
                           </div>
                           
@@ -105,15 +125,18 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                       )}
 
                       {isCurrentTurnCell && (
-                        <div ref={activeCellRef} className="animate-in fade-in slide-in-from-top-2 duration-500">
-                          <button onClick={onOpenAddWord} className={`w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 group ${turn ? 'mt-2 opacity-60 hover:opacity-100' : ''}`}>
+                        <div ref={activeCellRef} className="mt-auto pt-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                          <button 
+                            onClick={onOpenAddWord} 
+                            className={`w-full py-3 border-2 border-dashed border-amber-300 rounded-xl flex flex-col items-center justify-center gap-1 text-amber-600 hover:bg-amber-50 hover:border-amber-400 group transition-all ${turn ? 'opacity-90' : 'opacity-100'}`}
+                          >
                             <Plus size={20} className="group-hover:rotate-90 transition-transform" />
                             <span className="text-[10px] font-black uppercase">{turn ? "Add More" : "Add Words"}</span>
                           </button>
                         </div>
                       )}
 
-                      {!turn && !isCurrentTurnCell && <span className="text-stone-200 text-xl font-light opacity-50">—</span>}
+                      {!turn && !isCurrentTurnCell && <div className="flex-grow flex items-center justify-center"><span className="text-stone-200 text-xl font-light opacity-50">—</span></div>}
                     </div>
                   </td>
                 );
