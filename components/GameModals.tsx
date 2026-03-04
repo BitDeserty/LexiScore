@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, SkipForward, AlertTriangle, Zap, Trash2, Search, Check, Loader2, Info, Pencil, RotateCcw } from 'lucide-react';
 import { Play } from '../types';
 import { defineWord } from '../services/geminiService';
+import { END_TURN_ON_EMPTY_ENTER } from '../config';
 import confetti from 'canvas-confetti';
 
 const MotionDiv = motion.div as any;
@@ -30,6 +31,8 @@ export const AddWordModal: React.FC<{
   const [pointsInput, setPointsInput] = useState('');
   const [definition, setDefinition] = useState<string | null>(null);
   const [isLoadingDef, setIsLoadingDef] = useState(false);
+  const pointsInputRef = useRef<HTMLInputElement>(null);
+  const wordInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     const pts = parseInt(pointsInput);
@@ -145,6 +148,7 @@ export const AddWordModal: React.FC<{
                 </div>
 
                 <input 
+                  ref={wordInputRef}
                   autoFocus 
                   type="text" 
                   value={wordInput} 
@@ -152,6 +156,20 @@ export const AddWordModal: React.FC<{
                     setWordInput(e.target.value.toUpperCase());
                     setDefinition(null); // Reset verification status on change
                   }} 
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (END_TURN_ON_EMPTY_ENTER && !wordInput && !pointsInput && displayPlays.length > 0) {
+                        onEndTurn();
+                      } else {
+                        handleSubmit();
+                      }
+                    }
+                    if (/^[0-9]$/.test(e.key)) {
+                      e.preventDefault();
+                      setPointsInput(prev => prev + e.key);
+                      pointsInputRef.current?.focus();
+                    }
+                  }}
                   className={`w-full border-2 p-4 rounded-2xl text-xl font-bold transition-all focus:outline-none bg-white text-stone-900 ${
                     isLegal ? 'border-green-500 bg-green-50/30' : 
                     isIllegal ? 'border-red-500 bg-red-50/30' : 
@@ -163,10 +181,24 @@ export const AddWordModal: React.FC<{
                 <div className="space-y-2">
                   <label className="text-xs font-black text-stone-500 uppercase">Points</label>
                   <input 
+                    ref={pointsInputRef}
                     type="number" 
                     value={pointsInput} 
                     onChange={(e) => setPointsInput(e.target.value)} 
-                    onKeyDown={(e) => { if(e.key === 'Enter') handleSubmit(); }}
+                    onKeyDown={(e) => { 
+                      if(e.key === 'Enter') {
+                        if (END_TURN_ON_EMPTY_ENTER && !wordInput && !pointsInput && displayPlays.length > 0) {
+                          onEndTurn();
+                        } else {
+                          handleSubmit();
+                        }
+                      }
+                      if (/^[a-zA-Z]$/.test(e.key)) {
+                        e.preventDefault();
+                        setWordInput(prev => prev + e.key.toUpperCase());
+                        wordInputRef.current?.focus();
+                      }
+                    }}
                     className="w-full border-2 p-4 rounded-2xl text-xl font-bold focus:outline-none focus:border-amber-500 bg-white text-stone-900" 
                     placeholder="Points" 
                   />

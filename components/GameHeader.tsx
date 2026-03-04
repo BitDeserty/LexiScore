@@ -16,7 +16,7 @@ export const GameHeader: React.FC<HeaderProps> = ({ isGameStarted, onReset, onAd
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
       <div className="flex items-center gap-5">
         <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800">
-          <img src="./bitdeserty_avatar_small.jpg" alt="Logo" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display='none')} />
+          <img src="/bitdeserty_avatar_small.jpg" alt="Logo" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display='none')} />
           <Trophy className="text-amber-500 absolute" size={28} />
         </div>
         <div>
