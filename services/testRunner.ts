@@ -188,5 +188,15 @@ export function runRegressionSuite(getPlayerStats: (player: Player) => PlayerSta
     message: 'Verifies the logic for removing a specific word from a turn draft.'
   });
 
+  // Test Case 14: Mobile Add Word Button
+  const mobileAddWordBtn = document.querySelector('.mobile-add-word-btn');
+  results.push({
+    name: 'Mobile Add Word Button Presence',
+    passed: !!mobileAddWordBtn,
+    expected: true,
+    actual: !!mobileAddWordBtn,
+    message: 'Ensures the Add Word button is present in the TurnStatusBar for mobile convenience.'
+  });
+
   return results;
 }

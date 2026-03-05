@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { RotateCcw, UserPlus, Trophy } from 'lucide-react';
+import { RotateCcw, UserPlus, Trophy, Plus } from 'lucide-react';
 import { Player } from '../types';
 
 interface HeaderProps {
@@ -39,14 +39,20 @@ export const GameHeader: React.FC<HeaderProps> = ({ isGameStarted, onReset, onAd
 interface TurnBarProps {
   currentPlayerName: string;
   gameRound: number;
+  onOpenAddWord: () => void;
 }
 
-export const TurnStatusBar: React.FC<TurnBarProps> = ({ currentPlayerName, gameRound }) => (
+export const TurnStatusBar: React.FC<TurnBarProps> = ({ currentPlayerName, gameRound, onOpenAddWord }) => (
   <div className="turn-indicator-sticky bg-[#0c1a26]/95 backdrop-blur-md border-b-8 border-amber-600 py-3">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-      <div className="flex items-baseline gap-4">
-        <span className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Current Turn</span>
-        <h2 className="text-2xl sm:text-4xl font-bold text-white scrabble-font">{currentPlayerName}</h2>
+      <div className="flex items-center gap-4">
+        <div className="flex items-baseline gap-4">
+          <span className="text-amber-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Current Turn</span>
+          <h2 className="text-2xl sm:text-4xl font-bold text-white scrabble-font">{currentPlayerName}</h2>
+        </div>
+        <button onClick={onOpenAddWord} className="mobile-add-word-btn flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl transition-all active:scale-95 font-bold bg-amber-600 hover:bg-amber-500 text-stone-900 shadow-lg shadow-amber-900/40 border-b-4 border-amber-800">
+          <Plus size={16} /> <span className="hidden sm:inline">Add Word</span>
+        </button>
       </div>
       <div className="flex items-center gap-3">
         <span className="text-stone-500 text-[10px] font-black uppercase tracking-[0.4em] hidden sm:block">Active Round</span>
