@@ -122,6 +122,7 @@ const App: React.FC = () => {
           )}
           <ScoreSheet 
             isClockActive={isClockActive}
+            isClockRunning={isClockRunning}
             players={players}
             currentPlayerIndex={currentPlayerIndex}
             gameRound={gameRound}
