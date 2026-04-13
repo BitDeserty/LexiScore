@@ -37,8 +37,22 @@ const App: React.FC = () => {
   
   // Chess Clock State
   const [isClockRunning, setIsClockRunning] = useState(false);
-  const [isClockActive, setIsClockActive] = useState(ENABLE_CHESS_CLOCK);
-  const [timeoutSeconds, setTimeoutSeconds] = useState(TIME_ADDED_ON_TIMEOUT_SECONDS);
+  const [isClockActive, setIsClockActive] = useState(() => {
+    const saved = localStorage.getItem('lexiscore_clock_active');
+    return saved !== null ? JSON.parse(saved) : ENABLE_CHESS_CLOCK;
+  });
+  const [timeoutSeconds, setTimeoutSeconds] = useState(() => {
+    const saved = localStorage.getItem('lexiscore_timeout_seconds');
+    return saved !== null ? JSON.parse(saved) : TIME_ADDED_ON_TIMEOUT_SECONDS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lexiscore_clock_active', JSON.stringify(isClockActive));
+  }, [isClockActive]);
+
+  useEffect(() => {
+    localStorage.setItem('lexiscore_timeout_seconds', JSON.stringify(timeoutSeconds));
+  }, [timeoutSeconds]);
 
   useEffect(() => {
     if (!isClockActive || !isClockRunning) return;
