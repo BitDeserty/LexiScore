@@ -215,6 +215,23 @@ export const useScrabbleGame = () => {
     });
   }, [currentPlayerIndex, gameRound]);
 
+  const addWordToSpecificTurn = useCallback((playerId: string, roundIdx: number, word: string, points: number) => {
+    const newPlay: Play = { word, points };
+    const updated = players.map(p => {
+      if (p.id !== playerId) return p;
+      const newTurns = [...p.turns];
+      if (newTurns[roundIdx]) {
+        const filtered = newTurns[roundIdx].plays.filter(p => p.word !== 'PASSED' && p.word !== '—');
+        newTurns[roundIdx] = { ...newTurns[roundIdx], plays: [...filtered, newPlay] };
+      } else {
+        newTurns[roundIdx] = { plays: [newPlay], timestamp: Date.now() };
+      }
+      return { ...p, turns: newTurns };
+    });
+    setPlayers(updated);
+    persist(updated, currentPlayerIndex, gameRound);
+  }, [players, currentPlayerIndex, gameRound]);
+
   return {
     players,
     currentPlayerIndex,
@@ -225,6 +242,7 @@ export const useScrabbleGame = () => {
     updatePlayerName,
     resetGame,
     addWordToTurn,
+    addWordToSpecificTurn,
     removeWordFromTurn,
     endTurn,
     modifyPlay,

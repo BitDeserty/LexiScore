@@ -290,15 +290,28 @@ export const PlayOptionsModal: React.FC<{
   selectedPlay: { playerId: string, roundIdx: number, playIdx: number, play: Play };
   onClose: () => void;
   onModify: (updates: Partial<Play>) => void;
-}> = ({ selectedPlay, onClose, onModify }) => {
+  onAddWord: (word: string, points: number) => void;
+}> = ({ selectedPlay, onClose, onModify, onAddWord }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddingWord, setIsAddingWord] = useState(false);
   const [editWord, setEditWord] = useState(selectedPlay.play.word);
   const [editPoints, setEditPoints] = useState(selectedPlay.play.points.toString());
+  const [newWord, setNewWord] = useState('');
+  const [newPoints, setNewPoints] = useState('');
+
+  const newWordInputRef = useRef<HTMLInputElement>(null);
+  const newPointsInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveEdit = () => {
     const pts = parseInt(editPoints);
     if (!editWord.trim() || isNaN(pts)) return;
     onModify({ word: editWord.toUpperCase(), points: pts, isEdited: true });
+  };
+
+  const handleAddWord = () => {
+    const pts = parseInt(newPoints);
+    if (!newWord.trim() || isNaN(pts)) return;
+    onAddWord(newWord.toUpperCase(), pts);
   };
 
   const handleBingoToggle = (e: React.MouseEvent) => {
@@ -327,7 +340,9 @@ export const PlayOptionsModal: React.FC<{
     <ModalWrapper onClose={onClose}>
       <MotionDiv initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden text-stone-900">
         <div className="bg-amber-500 p-6 flex justify-between items-center text-white">
-          <h3 className="text-xl font-bold">{isEditing ? 'Edit Word' : selectedPlay.play.word}</h3>
+          <h3 className="text-xl font-bold">
+            {isEditing ? 'Edit Word' : isAddingWord ? 'Add Missed Word' : selectedPlay.play.word}
+          </h3>
           <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-full transition-colors"><X size={24} /></button>
         </div>
         
@@ -369,6 +384,67 @@ export const PlayOptionsModal: React.FC<{
                 </button>
               </div>
             </div>
+          ) : isAddingWord ? (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">New Word</label>
+                <input 
+                  ref={newWordInputRef}
+                  autoFocus
+                  type="text" 
+                  value={newWord} 
+                  onChange={(e) => setNewWord(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddWord();
+                    }
+                    if (/^[0-9]$/.test(e.key)) {
+                      e.preventDefault();
+                      setNewPoints(prev => prev + e.key);
+                      newPointsInputRef.current?.focus();
+                    }
+                  }}
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  placeholder="EX: TRIPLE"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Points</label>
+                <input 
+                  ref={newPointsInputRef}
+                  type="number" 
+                  value={newPoints} 
+                  onChange={(e) => setNewPoints(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddWord();
+                    }
+                    if (/^[a-zA-Z]$/.test(e.key)) {
+                      e.preventDefault();
+                      setNewWord(prev => prev + e.key.toUpperCase());
+                      newWordInputRef.current?.focus();
+                    }
+                  }}
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  placeholder="Points"
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button 
+                  onClick={() => setIsAddingWord(false)} 
+                  className="flex-1 py-4 rounded-2xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleAddWord}
+                  disabled={!newWord.trim() || isNaN(parseInt(newPoints))}
+                  className="flex-1 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-200 transition-all active:scale-95 shadow-lg shadow-emerald-200"
+                >
+                  Add Word
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="grid gap-4">
               <button 
@@ -377,6 +453,14 @@ export const PlayOptionsModal: React.FC<{
               >
                 <Pencil className="group-hover:rotate-12 transition-transform" />
                 <span className="font-bold">Edit Word Details</span>
+              </button>
+
+              <button 
+                onClick={() => setIsAddingWord(true)} 
+                className="flex items-center gap-4 p-5 bg-emerald-50 text-emerald-700 rounded-2xl hover:bg-emerald-100 transition-all active:scale-95 group border border-emerald-100"
+              >
+                <Plus className="group-hover:scale-110 transition-transform" />
+                <span className="font-bold">Add Missed Word</span>
               </button>
               
               <button 

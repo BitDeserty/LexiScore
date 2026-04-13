@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const {
     players, currentPlayerIndex, gameRound, getPlayerStats,
     addPlayer, removePlayer, updatePlayerName, resetGame,
-    addWordToTurn, removeWordFromTurn, endTurn, modifyPlay,
+    addWordToTurn, addWordToSpecificTurn, removeWordFromTurn, endTurn, modifyPlay,
     updatePlayerTime, setAllPlayersTime
   } = useScrabbleGame();
 
@@ -208,6 +208,7 @@ const App: React.FC = () => {
           selectedPlay={selectedPlayRef} 
           onClose={() => setSelectedPlayRef(null)} 
           onModify={(updates) => { modifyPlay(selectedPlayRef.playerId, selectedPlayRef.roundIdx, selectedPlayRef.playIdx, updates); setSelectedPlayRef(null); }}
+          onAddWord={(word, points) => { addWordToSpecificTurn(selectedPlayRef.playerId, selectedPlayRef.roundIdx, word, points); setSelectedPlayRef(null); }}
         />
       )}
     </div>
