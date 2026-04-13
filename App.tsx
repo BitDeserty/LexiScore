@@ -11,7 +11,7 @@ import { GameHeader, TurnStatusBar } from './components/GameHeader';
 import { ScoreSheet } from './components/ScoreSheet';
 import { AddWordModal, ResetModal, SkipConfirmModal, PlayOptionsModal } from './components/GameModals';
 import { ChessClockControls } from './components/ChessClockControls';
-import { ENABLE_CHESS_CLOCK, TIME_ADDED_ON_TIMEOUT_MINUTES } from './config';
+import { ENABLE_CHESS_CLOCK, TIME_ADDED_ON_TIMEOUT_SECONDS } from './config';
 
 const MAX_PLAYERS = 4;
 
@@ -38,6 +38,7 @@ const App: React.FC = () => {
   // Chess Clock State
   const [isClockRunning, setIsClockRunning] = useState(false);
   const [isClockActive, setIsClockActive] = useState(ENABLE_CHESS_CLOCK);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(TIME_ADDED_ON_TIMEOUT_SECONDS);
 
   useEffect(() => {
     if (!isClockActive || !isClockRunning) return;
@@ -48,13 +49,13 @@ const App: React.FC = () => {
         updatePlayerTime(currentPlayer.id, (currentPlayer.timeRemaining || 0) - 1);
       } else if (currentPlayer && (currentPlayer.timeRemaining || 0) <= 0) {
         // Time ran out
-        updatePlayerTime(currentPlayer.id, TIME_ADDED_ON_TIMEOUT_MINUTES * 60);
+        updatePlayerTime(currentPlayer.id, timeoutSeconds);
         endTurn(true);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isClockRunning, players, currentPlayerIndex, updatePlayerTime, endTurn]);
+  }, [isClockRunning, isClockActive, players, currentPlayerIndex, updatePlayerTime, endTurn, timeoutSeconds]);
 
   const activeCellRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +119,8 @@ const App: React.FC = () => {
                 setIsClockRunning(false);
                 setAllPlayersTime(minutes);
               }}
+              timeoutSeconds={timeoutSeconds}
+              onTimeoutSecondsChange={setTimeoutSeconds}
             />
           )}
           <ScoreSheet 

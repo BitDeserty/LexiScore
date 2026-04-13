@@ -10,88 +10,126 @@ interface ChessClockControlsProps {
   onStart: () => void;
   onPause: () => void;
   onReset: (minutes: number) => void;
+  timeoutSeconds: number;
+  onTimeoutSecondsChange: (seconds: number) => void;
 }
 
 export const ChessClockControls: React.FC<ChessClockControlsProps> = ({
-  isActive, onToggle, isRunning, onStart, onPause, onReset
+  isActive, onToggle, isRunning, onStart, onPause, onReset,
+  timeoutSeconds, onTimeoutSecondsChange
 }) => {
   const [minutes, setMinutes] = useState(DEFAULT_CLOCK_MINUTES.toString());
+  const [lastAppliedMinutes, setLastAppliedMinutes] = useState(DEFAULT_CLOCK_MINUTES.toString());
+  const [lastAppliedTimeout, setLastAppliedTimeout] = useState(timeoutSeconds);
 
   const handleReset = () => {
     const parsed = parseInt(minutes, 10);
     if (!isNaN(parsed) && parsed > 0) {
       onReset(parsed);
+      setLastAppliedMinutes(minutes);
+      setLastAppliedTimeout(timeoutSeconds);
     }
   };
+
+  const isTimeChanged = minutes !== lastAppliedMinutes || timeoutSeconds !== lastAppliedTimeout;
 
   return (
     <motion.div 
       layout
       whileTap={{ scale: 0.98, y: 2 }}
-      className={`rounded-3xl shadow-lg border flex flex-wrap items-center justify-between gap-4 transition-all duration-500 overflow-hidden ${
+      className={`rounded-3xl shadow-lg border flex items-center justify-between gap-4 transition-all duration-500 overflow-hidden ${
         isActive 
           ? 'bg-[#0c1a26] border-amber-500/30 p-6 w-full' 
           : 'bg-white border-stone-200 p-3 w-fit cursor-pointer hover:bg-stone-50'
       }`}
       onClick={!isActive ? onToggle : undefined}
     >
-      <div 
-        onClick={isActive ? onToggle : undefined}
-        className={`flex items-center gap-3 select-none group ${isActive ? 'cursor-pointer' : ''}`}
-      >
-        <div className={`p-2 rounded-xl transition-colors ${
-          isActive ? 'bg-amber-500 text-[#0c1a26]' : 'bg-amber-100 text-amber-600'
-        }`}>
-          <Clock size={isActive ? 20 : 16} />
+      <div className="flex items-center gap-8 flex-wrap">
+        <div 
+          onClick={isActive ? onToggle : undefined}
+          className={`flex items-center gap-3 select-none group ${isActive ? 'cursor-pointer' : ''}`}
+        >
+          <div className={`p-2 rounded-xl transition-colors ${
+            isActive ? 'bg-amber-500 text-[#0c1a26]' : 'bg-amber-100 text-amber-600'
+          }`}>
+            <Clock size={isActive ? 20 : 16} />
+          </div>
+          <h3 className={`font-bold transition-colors ${
+            isActive ? 'text-white text-lg' : 'text-stone-800 text-sm'
+          }`}>
+            Game Clock
+          </h3>
         </div>
-        <h3 className={`font-bold transition-colors ${
-          isActive ? 'text-white text-lg' : 'text-stone-800 text-sm'
-        }`}>
-          Game Clock
-        </h3>
+        
+        {isActive && (
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-6"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Time Pool/Player</label>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  min="1"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                  className="w-16 bg-stone-800 border border-stone-700 rounded-lg px-2 py-1 text-center font-bold text-amber-500 focus:outline-none focus:border-amber-500"
+                />
+                <span className="text-[10px] text-stone-500 font-bold">min</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Turn Reset</label>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  min="1"
+                  value={timeoutSeconds}
+                  onChange={(e) => onTimeoutSecondsChange(parseInt(e.target.value, 10) || 0)}
+                  className="w-16 bg-stone-800 border border-stone-700 rounded-lg px-2 py-1 text-center font-bold text-emerald-500 focus:outline-none focus:border-emerald-500"
+                />
+                <span className="text-[10px] text-stone-500 font-bold">sec</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
       
       {isActive && (
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-4 flex-wrap"
+          className="flex flex-col gap-3 min-w-[160px]"
         >
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest">Mins/Player</label>
-            <input 
-              type="number" 
-              min="1"
-              value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
-              className="w-16 bg-stone-800 border border-stone-700 rounded-lg px-2 py-1 text-center font-bold text-amber-500 focus:outline-none focus:border-amber-500"
-            />
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {isRunning ? (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onPause(); }}
-                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-[#0c1a26] px-4 py-2 rounded-xl font-bold transition-colors active:scale-95 shadow-lg shadow-amber-900/40"
-              >
-                <Pause size={16} /> Pause
-              </button>
-            ) : (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onStart(); }}
-                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-[#0c1a26] px-4 py-2 rounded-xl font-bold transition-colors active:scale-95 shadow-lg shadow-emerald-900/40"
-              >
-                <Play size={16} /> Start
-              </button>
-            )}
-            
+          {isRunning ? (
             <button 
-              onClick={(e) => { e.stopPropagation(); handleReset(); }}
-              className="flex items-center gap-2 bg-stone-800 hover:bg-stone-700 text-stone-300 px-4 py-2 rounded-xl font-bold transition-colors active:scale-95 border border-stone-700"
+              onClick={(e) => { e.stopPropagation(); onPause(); }}
+              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-[#0c1a26] px-8 py-4 rounded-full font-black text-lg transition-all active:scale-95 shadow-xl shadow-amber-900/40 w-full"
             >
-              <RotateCcw size={16} /> Set Time
+              <Pause size={24} /> PAUSE
             </button>
-          </div>
+          ) : (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onStart(); }}
+              className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-[#0c1a26] px-8 py-4 rounded-full font-black text-lg transition-all active:scale-95 shadow-xl shadow-emerald-900/40 w-full"
+            >
+              <Play size={24} /> START
+            </button>
+          )}
+          
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleReset(); }}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold transition-all active:scale-95 border w-full text-xs ${
+              isTimeChanged 
+                ? 'bg-amber-500/20 border-amber-500 text-amber-500 hover:bg-amber-500/30' 
+                : 'bg-stone-800 border-stone-700 text-stone-400 hover:bg-stone-700'
+            }`}
+          >
+            <RotateCcw size={14} /> {isTimeChanged ? "Apply & Reset" : "Set Time"}
+          </button>
         </motion.div>
       )}
     </motion.div>
