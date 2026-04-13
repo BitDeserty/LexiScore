@@ -1,7 +1,14 @@
 
 import React from 'react';
-import { ClipboardList, Hash, Pencil, X, Plus, RotateCcw } from 'lucide-react';
+import { ClipboardList, Hash, Pencil, X, Plus, RotateCcw, Clock } from 'lucide-react';
 import { Player, Play, PlayerStats } from '../types';
+import { ENABLE_CHESS_CLOCK } from '../config';
+
+const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
 
 interface ScoreSheetProps {
   players: Player[];
@@ -55,7 +62,17 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                   />
                 ) : (
                   <div className="flex items-center justify-between gap-3 w-full group">
-                    <span onClick={() => onStartEditName(p)} className={`font-black text-lg truncate cursor-pointer hover:text-amber-600 ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>{p.name}</span>
+                    <div className="flex flex-col">
+                      <span onClick={() => onStartEditName(p)} className={`font-black text-lg truncate cursor-pointer hover:text-amber-600 ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>{p.name}</span>
+                      {ENABLE_CHESS_CLOCK && (
+                        <div className={`mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-sm font-bold tracking-widest shadow-inner border ${
+                          (p.timeRemaining || 0) <= 60 ? 'bg-red-900 text-red-400 border-red-800' : 'bg-stone-900 text-emerald-400 border-stone-800'
+                        }`}>
+                          <Clock size={12} className={(p.timeRemaining || 0) <= 60 ? 'animate-pulse' : ''} />
+                          {formatTime(p.timeRemaining || 0)}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => onStartEditName(p)} className="text-stone-300 hover:text-amber-500 opacity-20 group-hover:opacity-100"><Pencil size={14} /></button>
                       {!isGameStarted && players.length > 1 && <button onClick={() => onRemovePlayer(p.id)} className="text-stone-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><X size={16} /></button>}

@@ -10,6 +10,8 @@ import { runRegressionSuite, TestResult } from './services/testRunner';
 import { GameHeader, TurnStatusBar } from './components/GameHeader';
 import { ScoreSheet } from './components/ScoreSheet';
 import { AddWordModal, ResetModal, SkipConfirmModal, PlayOptionsModal } from './components/GameModals';
+import { ChessClockControls } from './components/ChessClockControls';
+import { ENABLE_CHESS_CLOCK, TIME_ADDED_ON_TIMEOUT_MINUTES } from './config';
 
 const MAX_PLAYERS = 4;
 
@@ -17,7 +19,8 @@ const App: React.FC = () => {
   const {
     players, currentPlayerIndex, gameRound, getPlayerStats,
     addPlayer, removePlayer, updatePlayerName, resetGame,
-    addWordToTurn, removeWordFromTurn, endTurn, modifyPlay
+    addWordToTurn, removeWordFromTurn, endTurn, modifyPlay,
+    updatePlayerTime, setAllPlayersTime
   } = useScrabbleGame();
 
   // UI States
@@ -31,6 +34,26 @@ const App: React.FC = () => {
   const [selectedPlayRef, setSelectedPlayRef] = useState<{ 
     playerId: string, roundIdx: number, playIdx: number, play: Play 
   } | null>(null);
+  
+  // Chess Clock State
+  const [isClockRunning, setIsClockRunning] = useState(false);
+
+  useEffect(() => {
+    if (!ENABLE_CHESS_CLOCK || !isClockRunning) return;
+
+    const interval = setInterval(() => {
+      const currentPlayer = players[currentPlayerIndex];
+      if (currentPlayer && (currentPlayer.timeRemaining || 0) > 0) {
+        updatePlayerTime(currentPlayer.id, (currentPlayer.timeRemaining || 0) - 1);
+      } else if (currentPlayer && (currentPlayer.timeRemaining || 0) <= 0) {
+        // Time ran out
+        updatePlayerTime(currentPlayer.id, TIME_ADDED_ON_TIMEOUT_MINUTES * 60);
+        endTurn(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isClockRunning, players, currentPlayerIndex, updatePlayerTime, endTurn]);
 
   const activeCellRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +103,17 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:grid lg:grid-cols-12 gap-8 mt-8 flex-grow w-full overflow-x-hidden">
         <div className="w-full min-w-0 lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
+          {ENABLE_CHESS_CLOCK && (
+            <ChessClockControls 
+              isRunning={isClockRunning}
+              onStart={() => setIsClockRunning(true)}
+              onPause={() => setIsClockRunning(false)}
+              onReset={(minutes) => {
+                setIsClockRunning(false);
+                setAllPlayersTime(minutes);
+              }}
+            />
+          )}
           <ScoreSheet 
             players={players}
             currentPlayerIndex={currentPlayerIndex}

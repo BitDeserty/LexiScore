@@ -16,6 +16,7 @@ export interface Player {
   id: string;
   name: string;
   turns: Turn[];
+  timeRemaining?: number;
 }
 
 export interface GameState {

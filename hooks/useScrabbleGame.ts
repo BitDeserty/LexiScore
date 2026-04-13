@@ -1,6 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { Player, PlayerStats, Play } from '../types';
+import { DEFAULT_CLOCK_MINUTES } from '../config';
 
 const STORAGE_KEY = 'lexiscore_game_state_v1';
 
@@ -20,9 +21,9 @@ export const useScrabbleGame = () => {
   const initialState = getInitialState();
 
   const [players, setPlayers] = useState<Player[]>(
-    initialState?.players || [
-      { id: '1', name: 'Player 1', turns: [] },
-      { id: '2', name: 'Player 2', turns: [] }
+    initialState?.players?.map((p: Player) => ({ ...p, timeRemaining: p.timeRemaining ?? DEFAULT_CLOCK_MINUTES * 60 })) || [
+      { id: '1', name: 'Player 1', turns: [], timeRemaining: DEFAULT_CLOCK_MINUTES * 60 },
+      { id: '2', name: 'Player 2', turns: [], timeRemaining: DEFAULT_CLOCK_MINUTES * 60 }
     ]
   );
 
@@ -66,7 +67,7 @@ export const useScrabbleGame = () => {
   const addPlayer = useCallback((max: number) => {
     if (players.length >= max) return;
     const newId = Math.random().toString(36).substr(2, 9);
-    const newPlayers = [...players, { id: newId, name: `Player ${players.length + 1}`, turns: [] }];
+    const newPlayers = [...players, { id: newId, name: `Player ${players.length + 1}`, turns: [], timeRemaining: DEFAULT_CLOCK_MINUTES * 60 }];
     setPlayers(newPlayers);
     persist(newPlayers, currentPlayerIndex, gameRound);
   }, [players, currentPlayerIndex, gameRound]);
@@ -86,7 +87,7 @@ export const useScrabbleGame = () => {
   }, [players, currentPlayerIndex, gameRound]);
 
   const resetGame = useCallback(() => {
-    const fresh = players.map(p => ({ ...p, turns: [] }));
+    const fresh = players.map(p => ({ ...p, turns: [], timeRemaining: DEFAULT_CLOCK_MINUTES * 60 }));
     setPlayers(fresh);
     setCurrentPlayerIndex(0);
     setGameRound(1);
@@ -164,6 +165,56 @@ export const useScrabbleGame = () => {
     persist(updated, currentPlayerIndex, gameRound);
   }, [players, currentPlayerIndex, gameRound]);
 
+  const updatePlayerTime = useCallback((playerId: string, newTime: number) => {
+    setPlayers(prev => {
+      const updated = prev.map(p => p.id === playerId ? { ...p, timeRemaining: newTime } : p);
+      persist(updated, currentPlayerIndex, gameRound);
+      return updated;
+    });
+  }, [currentPlayerIndex, gameRound]);
+
+  const setAllPlayersTime = useCallback((minutes: number) => {
+    setPlayers(prev => {
+      const updated = prev.map(p => ({ ...p, timeRemaining: minutes * 60 }));
+      persist(updated, currentPlayerIndex, gameRound);
+      return updated;
+    });
+  }, [currentPlayerIndex, gameRound]);
+
+  const tickClock = useCallback((timeoutMinutes: number) => {
+    setPlayers(prev => {
+      const updated = [...prev];
+      const player = { ...updated[currentPlayerIndex] };
+      
+      if ((player.timeRemaining || 0) > 0) {
+        player.timeRemaining = (player.timeRemaining || 0) - 1;
+        updated[currentPlayerIndex] = player;
+        persist(updated, currentPlayerIndex, gameRound);
+        return updated;
+      } else {
+        // Time ran out
+        player.timeRemaining = timeoutMinutes * 60;
+        updated[currentPlayerIndex] = player;
+        
+        // End turn logic inline to avoid dependency cycles
+        const roundIdx = gameRound - 1;
+        const newTurns = [...player.turns];
+        if (!newTurns[roundIdx]) {
+          newTurns[roundIdx] = { plays: [{ word: 'PASSED', points: 0 }], timestamp: Date.now() };
+        }
+        player.turns = newTurns;
+        
+        const nextPlayerIndex = (currentPlayerIndex + 1) % updated.length;
+        const nextRound = nextPlayerIndex === 0 ? gameRound + 1 : gameRound;
+        
+        setCurrentPlayerIndex(nextPlayerIndex);
+        setGameRound(nextRound);
+        persist(updated, nextPlayerIndex, nextRound);
+        return updated;
+      }
+    });
+  }, [currentPlayerIndex, gameRound]);
+
   return {
     players,
     currentPlayerIndex,
@@ -176,6 +227,9 @@ export const useScrabbleGame = () => {
     addWordToTurn,
     removeWordFromTurn,
     endTurn,
-    modifyPlay
+    modifyPlay,
+    updatePlayerTime,
+    setAllPlayersTime,
+    tickClock
   };
 };
