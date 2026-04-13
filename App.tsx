@@ -99,30 +99,35 @@ const App: React.FC = () => {
           onAddPlayer={() => addPlayer(MAX_PLAYERS)}
           maxPlayers={MAX_PLAYERS}
           playerCount={players.length}
+          isClockActive={isClockActive}
+          onToggleClock={() => setIsClockActive(true)}
         />
         <TurnStatusBar currentPlayerName={players[currentPlayerIndex].name} gameRound={gameRound} onOpenAddWord={() => setIsInputModalOpen(true)} />
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col lg:grid lg:grid-cols-12 gap-8 mt-8 flex-grow w-full overflow-x-hidden">
         <div className="w-full min-w-0 lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
-          {ENABLE_CHESS_CLOCK && (
-            <ChessClockControls 
-              isActive={isClockActive}
-              onToggle={() => {
-                setIsClockActive(!isClockActive);
-                if (isClockActive) setIsClockRunning(false);
-              }}
-              isRunning={isClockRunning}
-              onStart={() => setIsClockRunning(true)}
-              onPause={() => setIsClockRunning(false)}
-              onReset={(minutes) => {
-                setIsClockRunning(false);
-                setAllPlayersTime(minutes);
-              }}
-              timeoutSeconds={timeoutSeconds}
-              onTimeoutSecondsChange={setTimeoutSeconds}
-            />
-          )}
+          <AnimatePresence mode="wait">
+            {ENABLE_CHESS_CLOCK && isClockActive && (
+              <ChessClockControls 
+                key="game-clock"
+                isActive={isClockActive}
+                onToggle={() => {
+                  setIsClockActive(false);
+                  setIsClockRunning(false);
+                }}
+                isRunning={isClockRunning}
+                onStart={() => setIsClockRunning(true)}
+                onPause={() => setIsClockRunning(false)}
+                onReset={(minutes) => {
+                  setIsClockRunning(false);
+                  setAllPlayersTime(minutes);
+                }}
+                timeoutSeconds={timeoutSeconds}
+                onTimeoutSecondsChange={setTimeoutSeconds}
+              />
+            )}
+          </AnimatePresence>
           <ScoreSheet 
             isClockActive={isClockActive}
             isClockRunning={isClockRunning}

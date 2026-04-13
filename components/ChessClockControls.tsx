@@ -35,38 +35,30 @@ export const ChessClockControls: React.FC<ChessClockControlsProps> = ({
 
   return (
     <motion.div 
-      layout
-      whileTap={{ scale: 0.98, y: 2 }}
-      className={`rounded-3xl shadow-lg border flex items-center justify-between gap-4 transition-all duration-500 overflow-hidden ${
-        isActive 
-          ? 'bg-[#0c1a26] border-amber-500/30 p-6 w-full' 
-          : 'bg-white border-stone-200 p-3 w-fit cursor-pointer hover:bg-stone-50'
-      }`}
-      onClick={!isActive ? onToggle : undefined}
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      whileTap={{ scale: 0.995, y: 1 }}
+      className="rounded-3xl shadow-lg border flex items-center justify-between gap-4 overflow-hidden bg-[#0c1a26] border-amber-500/30 p-6 w-full"
     >
       <div className="flex items-center gap-8 flex-wrap">
         <div 
-          onClick={isActive ? onToggle : undefined}
-          className={`flex items-center gap-3 select-none group ${isActive ? 'cursor-pointer' : ''}`}
+          onClick={onToggle}
+          className="flex items-center gap-3 select-none group cursor-pointer"
         >
-          <div className={`p-2 rounded-xl transition-colors ${
-            isActive ? 'bg-amber-500 text-[#0c1a26]' : 'bg-amber-100 text-amber-600'
-          }`}>
-            <Clock size={isActive ? 20 : 16} />
+          <div className="p-2 rounded-xl transition-colors bg-amber-500 text-[#0c1a26]">
+            <Clock size={20} />
           </div>
-          <h3 className={`font-bold transition-colors ${
-            isActive ? 'text-white text-lg' : 'text-stone-800 text-sm'
-          }`}>
+          <h3 className="font-bold transition-colors text-white text-lg">
             Game Clock
           </h3>
         </div>
         
-        {isActive && (
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-6"
-          >
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex items-center gap-6"
+        >
             <div className="flex flex-col gap-1">
               <label className="text-[9px] font-black uppercase text-stone-400 tracking-widest">Time Pool/Player</label>
               <div className="flex items-center gap-2">
@@ -95,15 +87,13 @@ export const ChessClockControls: React.FC<ChessClockControlsProps> = ({
               </div>
             </div>
           </motion.div>
-        )}
       </div>
       
-      {isActive && (
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col gap-3 min-w-[160px]"
-        >
+      <motion.div 
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="flex flex-col gap-3 min-w-[160px]"
+      >
           {isRunning ? (
             <button 
               onClick={(e) => { e.stopPropagation(); onPause(); }}
@@ -131,7 +121,6 @@ export const ChessClockControls: React.FC<ChessClockControlsProps> = ({
             <RotateCcw size={14} /> {isTimeChanged ? "Apply & Reset" : "Set Time"}
           </button>
         </motion.div>
-      )}
     </motion.div>
   );
 };

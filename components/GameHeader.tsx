@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { RotateCcw, UserPlus, Trophy, Plus } from 'lucide-react';
+import { RotateCcw, UserPlus, Trophy, Plus, Clock } from 'lucide-react';
 import { Player } from '../types';
 
 interface HeaderProps {
@@ -9,9 +9,13 @@ interface HeaderProps {
   onAddPlayer: () => void;
   maxPlayers: number;
   playerCount: number;
+  isClockActive: boolean;
+  onToggleClock: () => void;
 }
 
-export const GameHeader: React.FC<HeaderProps> = ({ isGameStarted, onReset, onAddPlayer, maxPlayers, playerCount }) => (
+export const GameHeader: React.FC<HeaderProps> = ({ 
+  isGameStarted, onReset, onAddPlayer, maxPlayers, playerCount, isClockActive, onToggleClock 
+}) => (
   <header className="bg-[#0c1a26] text-white py-6 border-b-4 border-amber-500">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
       <div className="flex items-center gap-5">
@@ -25,6 +29,14 @@ export const GameHeader: React.FC<HeaderProps> = ({ isGameStarted, onReset, onAd
         </div>
       </div>
       <div className="flex items-center gap-4">
+        {!isClockActive && (
+          <button 
+            onClick={onToggleClock}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all active:scale-95 font-bold bg-amber-600 hover:bg-amber-500 text-stone-900 shadow-xl shadow-amber-900/40 border-b-4 border-amber-800"
+          >
+            <Clock size={18} /> <span className="hidden sm:inline">Game Clock</span>
+          </button>
+        )}
         <button onClick={onReset} disabled={!isGameStarted} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all border font-semibold ${isGameStarted ? 'bg-[#1a2e40] hover:bg-[#253d54] text-stone-300 border-stone-700 active:scale-95' : 'bg-stone-800 text-stone-600 border-stone-700 cursor-not-allowed opacity-50'}`}>
           <RotateCcw size={18} /> <span className="hidden sm:inline">Reset Game</span>
         </button>
