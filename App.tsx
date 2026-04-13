@@ -37,9 +37,10 @@ const App: React.FC = () => {
   
   // Chess Clock State
   const [isClockRunning, setIsClockRunning] = useState(false);
+  const [isClockActive, setIsClockActive] = useState(ENABLE_CHESS_CLOCK);
 
   useEffect(() => {
-    if (!ENABLE_CHESS_CLOCK || !isClockRunning) return;
+    if (!isClockActive || !isClockRunning) return;
 
     const interval = setInterval(() => {
       const currentPlayer = players[currentPlayerIndex];
@@ -105,6 +106,11 @@ const App: React.FC = () => {
         <div className="w-full min-w-0 lg:col-span-8 flex flex-col gap-6 order-1 lg:order-2">
           {ENABLE_CHESS_CLOCK && (
             <ChessClockControls 
+              isActive={isClockActive}
+              onToggle={() => {
+                setIsClockActive(!isClockActive);
+                if (isClockActive) setIsClockRunning(false);
+              }}
               isRunning={isClockRunning}
               onStart={() => setIsClockRunning(true)}
               onPause={() => setIsClockRunning(false)}
@@ -115,6 +121,7 @@ const App: React.FC = () => {
             />
           )}
           <ScoreSheet 
+            isClockActive={isClockActive}
             players={players}
             currentPlayerIndex={currentPlayerIndex}
             gameRound={gameRound}

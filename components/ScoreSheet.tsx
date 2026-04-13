@@ -11,6 +11,7 @@ const formatTime = (seconds: number) => {
 };
 
 interface ScoreSheetProps {
+  isClockActive: boolean;
   players: Player[];
   currentPlayerIndex: number;
   gameRound: number;
@@ -31,7 +32,7 @@ interface ScoreSheetProps {
 }
 
 export const ScoreSheet: React.FC<ScoreSheetProps> = ({ 
-  players, currentPlayerIndex, gameRound, isGameStarted, editingPlayerId, editNameValue,
+  isClockActive, players, currentPlayerIndex, gameRound, isGameStarted, editingPlayerId, editNameValue,
   onStartEditName, onSaveName, onCancelEditName, onSetNameValue, onRemovePlayer,
   onUndoRemove, onPlayClick, onOpenAddWord, getPlayerStats, activeCellRef, editInputRef
 }) => (
@@ -62,10 +63,10 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
                   />
                 ) : (
                   <div className="flex items-center justify-between gap-3 w-full group">
-                    <div className="flex flex-col">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span onClick={() => onStartEditName(p)} className={`font-black text-lg truncate cursor-pointer hover:text-amber-600 ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>{p.name}</span>
-                      {ENABLE_CHESS_CLOCK && (
-                        <div className={`mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-sm font-bold tracking-widest shadow-inner border ${
+                      {isClockActive && (
+                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-sm font-bold tracking-widest shadow-inner border ${
                           (p.timeRemaining || 0) <= 60 ? 'bg-red-900 text-red-400 border-red-800' : 'bg-stone-900 text-emerald-400 border-stone-800'
                         }`}>
                           <Clock size={12} className={(p.timeRemaining || 0) <= 60 ? 'animate-pulse' : ''} />
