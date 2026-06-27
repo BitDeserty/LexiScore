@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, SkipForward, AlertTriangle, Zap, Trash2, Search, Check, Loader2, Info, Pencil, RotateCcw } from 'lucide-react';
+import { X, Plus, SkipForward, AlertTriangle, Zap, Trash2, Search, Check, Loader2, Info, Pencil, RotateCcw, Crown } from 'lucide-react';
 import { Play } from '../types';
 import { defineWord } from '../services/geminiService';
 import { END_TURN_ON_EMPTY_ENTER } from '../config';
@@ -9,15 +9,39 @@ import confetti from 'canvas-confetti';
 
 const MotionDiv = motion.div as any;
 
-const ModalWrapper: React.FC<{ children: React.ReactNode; onClose: () => void; zIndex?: number }> = ({ children, onClose, zIndex = 200 }) => (
-  <div 
-    className="fixed inset-0 flex items-center justify-center p-4 modal-overlay-container"
-    style={{ zIndex }}
-  >
-    <MotionDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-stone-900/80 backdrop-blur-md" onClick={onClose} />
-    {children}
-  </div>
-);
+const ModalWrapper: React.FC<{ children: React.ReactNode; onClose: () => void; zIndex?: number }> = ({ children, onClose, zIndex = 200 }) => {
+  useEffect(() => {
+    // Lock background scrolling on document body and html elements
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+  }, []);
+
+  return (
+    <div 
+      className="fixed inset-0 flex items-start justify-center p-4 pt-6 md:pt-16 lg:pt-24 pb-12 modal-overlay-container overflow-y-auto z-[200] overscroll-none"
+      style={{ zIndex }}
+    >
+      <MotionDiv 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }} 
+        className="fixed inset-0 bg-stone-900/80 backdrop-blur-md" 
+        onClick={onClose} 
+      />
+      <div className="relative z-10 w-full max-w-lg pointer-events-auto py-4">
+        {children}
+      </div>
+    </div>
+  );
+};
 
 /**
  * Modal to add words and points for a player's turn.
@@ -25,8 +49,9 @@ const ModalWrapper: React.FC<{ children: React.ReactNode; onClose: () => void; z
 export const AddWordModal: React.FC<{
   isOpen: boolean; onClose: () => void; playerName: string; gameRound: number; 
   onAddWord: (w: string, p: number) => void; onRemoveWord: (idx: number) => void;
+  onModifyWord: (idx: number, updates: Partial<Play>) => void;
   onEndTurn: () => void; currentPlays: Play[];
-}> = ({ isOpen, onClose, playerName, gameRound, onAddWord, onRemoveWord, onEndTurn, currentPlays }) => {
+}> = ({ isOpen, onClose, playerName, gameRound, onAddWord, onRemoveWord, onModifyWord, onEndTurn, currentPlays }) => {
   const [wordInput, setWordInput] = useState('');
   const [pointsInput, setPointsInput] = useState('');
   const [definition, setDefinition] = useState<string | null>(null);
@@ -58,30 +83,55 @@ export const AddWordModal: React.FC<{
     onRemoveWord(originalIndex);
   };
 
+  const handleBingoToggle = (e: React.MouseEvent, play: Play, originalIndex: number) => {
+    const isEnabling = !play.isBingo;
+    
+    if (isEnabling) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { x, y },
+        colors: ['#f59e0b', '#fbbf24', '#ffffff', '#d97706'],
+        disableForReducedMotion: true,
+        zIndex: 99999
+      });
+    }
+
+    onModifyWord(originalIndex, { 
+      isBingo: isEnabling, 
+      points: isEnabling ? play.points + 50 : play.points - 50 
+    });
+  };
+
   // Determine legality based on AI response format
   const isLegal = definition?.trim().toUpperCase().startsWith('VALID');
   const isIllegal = definition?.trim().toUpperCase().startsWith('INVALID');
 
   // Calculate current turn metrics
   const roundTotal = currentPlays.reduce((sum, p) => p.isRemoved ? sum : sum + p.points, 0);
-  const displayPlays = currentPlays.filter(p => p.word !== 'PASSED' && p.word !== '—');
+  const displayPlays = currentPlays
+    .map((play, originalIndex) => ({ play, originalIndex }))
+    .filter(item => item.play.word !== 'PASSED' && item.play.word !== '—');
 
   return (
     <AnimatePresence>
       {isOpen && (
         <ModalWrapper onClose={onClose}>
-          <MotionDiv initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-[#0c1a26] p-8 text-white relative">
+          <MotionDiv initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="relative bg-white rounded-3xl md:rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-none md:max-h-[90vh]">
+            <div className="bg-[#0c1a26] p-5 md:p-8 text-white relative">
               <button onClick={onClose} className="absolute top-4 right-4 p-2 text-stone-400 hover:text-white"><X size={24} /></button>
-              <h3 className="text-xl font-black uppercase tracking-widest text-amber-500 mb-2">Add Words</h3>
+              <h3 className="text-xl font-black uppercase tracking-widest text-amber-500 mb-1 md:mb-2">Add Words</h3>
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-bold scrabble-font">{playerName}</span>
+                <span className="text-3xl md:text-4xl font-bold scrabble-font">{playerName}</span>
                 <span className="text-stone-500 uppercase text-xs">Round {gameRound}</span>
               </div>
             </div>
 
             {/* Turn Summary Section */}
-            <div className="bg-amber-50/80 p-6 border-b border-amber-100">
+            <div className="bg-amber-50/80 p-4 md:p-6 border-b border-amber-100">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Turn Summary</h4>
                 <div className="flex items-center gap-2 px-3 py-1 bg-amber-200/50 rounded-lg border border-amber-300">
@@ -92,19 +142,30 @@ export const AddWordModal: React.FC<{
               
               <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
                 {displayPlays.length > 0 ? (
-                  displayPlays.map((play, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => handleEditFromSummary(play, idx)}
-                      title="Click to edit"
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all hover:scale-105 active:scale-95 group ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}
-                    >
-                      <span className="text-sm font-black text-stone-800 uppercase">{play.word}</span>
-                      <span className={`text-[10px] font-bold px-1.5 rounded ${play.isBingo ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
-                        {play.points}
-                      </span>
-                      <Pencil size={10} className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
+                  displayPlays.map(({ play, originalIndex }) => (
+                    <div key={originalIndex} className="relative group flex flex-col items-center">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBingoToggle(e, play, originalIndex);
+                        }}
+                        className={`absolute -top-2 left-1/2 -translate-x-1/2 z-10 p-1 rounded-full transition-all hover:scale-110 active:scale-90 ${play.isBingo ? 'text-amber-500 bg-amber-50 shadow-sm border border-amber-200' : 'text-stone-300 hover:text-amber-400'}`}
+                        title={play.isBingo ? "Remove Bingo Bonus" : "Add Bingo Bonus (+50)"}
+                      >
+                        <Crown size={12} fill={play.isBingo ? "currentColor" : "none"} />
+                      </button>
+                      <button 
+                        onClick={() => handleEditFromSummary(play, originalIndex)}
+                        title="Click to edit"
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all hover:scale-105 active:scale-95 group mt-1 ${play.isRemoved ? 'bg-stone-200/50 border-stone-200 grayscale opacity-50' : 'bg-white border-amber-200'}`}
+                      >
+                        <span className="text-sm font-black text-stone-800 uppercase">{play.word}</span>
+                        <span className={`text-[10px] font-bold px-1.5 rounded ${play.isBingo ? 'bg-amber-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
+                          {play.points}
+                        </span>
+                        <Pencil size={10} className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </div>
                   ))
                 ) : (
                   <p className="text-xs text-stone-400 italic">No words added to this turn yet.</p>
@@ -112,7 +173,7 @@ export const AddWordModal: React.FC<{
               </div>
             </div>
 
-            <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
+            <div className="p-5 md:p-8 space-y-4 md:space-y-6 overflow-y-auto custom-scrollbar">
               <div className="space-y-4">
                 <div className="flex justify-between items-center h-8">
                   <label className="text-xs font-black text-stone-500 uppercase">Word Played</label>
@@ -170,7 +231,7 @@ export const AddWordModal: React.FC<{
                       pointsInputRef.current?.focus();
                     }
                   }}
-                  className={`w-full border-2 p-4 rounded-2xl text-xl font-bold transition-all focus:outline-none bg-white text-stone-900 ${
+                  className={`w-full border-2 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold transition-all focus:outline-none bg-white text-stone-900 ${
                     isLegal ? 'border-green-500 bg-green-50/30' : 
                     isIllegal ? 'border-red-500 bg-red-50/30' : 
                     'border-stone-200 focus:border-amber-500'
@@ -181,61 +242,61 @@ export const AddWordModal: React.FC<{
                 <div className="space-y-2">
                   <label className="text-xs font-black text-stone-500 uppercase">Points</label>
                   <input 
-                    ref={pointsInputRef}
-                    type="number" 
-                    value={pointsInput} 
-                    onChange={(e) => setPointsInput(e.target.value)} 
-                    onKeyDown={(e) => { 
-                      if(e.key === 'Enter') {
-                        if (END_TURN_ON_EMPTY_ENTER && !wordInput && !pointsInput && displayPlays.length > 0) {
-                          onEndTurn();
-                        } else {
-                          handleSubmit();
-                        }
+                  ref={pointsInputRef}
+                  type="number" 
+                  value={pointsInput} 
+                  onChange={(e) => setPointsInput(e.target.value)} 
+                  onKeyDown={(e) => { 
+                    if(e.key === 'Enter') {
+                      if (END_TURN_ON_EMPTY_ENTER && !wordInput && !pointsInput && displayPlays.length > 0) {
+                        onEndTurn();
+                      } else {
+                        handleSubmit();
                       }
-                      if (/^[a-zA-Z]$/.test(e.key)) {
-                        e.preventDefault();
-                        setWordInput(prev => prev + e.key.toUpperCase());
-                        wordInputRef.current?.focus();
-                      }
-                    }}
-                    className="w-full border-2 p-4 rounded-2xl text-xl font-bold focus:outline-none focus:border-amber-500 bg-white text-stone-900" 
-                    placeholder="Points" 
-                  />
+                    }
+                    if (/^[a-zA-Z]$/.test(e.key)) {
+                      e.preventDefault();
+                      setWordInput(prev => prev + e.key.toUpperCase());
+                      wordInputRef.current?.focus();
+                    }
+                  }}
+                  className="w-full border-2 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold focus:outline-none focus:border-amber-500 bg-white text-stone-900" 
+                  placeholder="Points" 
+                />
+              </div>
+            </div>
+            
+            {definition && (
+              <div className={`p-5 rounded-2xl border flex gap-4 animate-in fade-in slide-in-from-top-2 duration-300 ${isLegal ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+                <div className={`p-2 rounded-lg h-fit ${isLegal ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <Info size={18} />
+                </div>
+                <div>
+                  <h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isLegal ? 'text-green-700' : 'text-red-700'}`}>AI Definition</h4>
+                  <p className="text-sm text-stone-700 italic leading-relaxed">
+                    {definition.replace(/^(VALID|INVALID)\s*:\s*/i, '')}
+                  </p>
                 </div>
               </div>
-              
-              {definition && (
-                <div className={`p-5 rounded-2xl border flex gap-4 animate-in fade-in slide-in-from-top-2 duration-300 ${isLegal ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
-                  <div className={`p-2 rounded-lg h-fit ${isLegal ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    <Info size={18} />
-                  </div>
-                  <div>
-                    <h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isLegal ? 'text-green-700' : 'text-red-700'}`}>AI Definition</h4>
-                    <p className="text-sm text-stone-700 italic leading-relaxed">
-                      {definition.replace(/^(VALID|INVALID)\s*:\s*/i, '')}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="p-8 bg-stone-50 border-t flex gap-4">
-              <button 
-                onClick={handleSubmit} 
-                disabled={!wordInput || !pointsInput}
-                className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-white py-4 rounded-2xl font-black transition-all shadow-lg active:scale-95"
-              >
-                ADD WORD
-              </button>
-              <button 
-                onClick={onEndTurn} 
-                className="flex-1 bg-[#0c1a26] hover:bg-[#1a2e40] text-amber-500 py-4 rounded-2xl font-black transition-all shadow-lg active:scale-95"
-              >
-                END TURN
-              </button>
-            </div>
-          </MotionDiv>
-        </ModalWrapper>
+            )}
+          </div>
+          <div className="p-5 md:p-8 bg-stone-50 border-t flex gap-4">
+            <button 
+              onClick={handleSubmit} 
+              disabled={!wordInput || !pointsInput}
+              className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-stone-200 disabled:text-stone-400 text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-black transition-all shadow-lg active:scale-95"
+            >
+              ADD WORD
+            </button>
+            <button 
+              onClick={onEndTurn} 
+              className="flex-1 bg-[#0c1a26] hover:bg-[#1a2e40] text-amber-500 py-3 md:py-4 rounded-xl md:rounded-2xl font-black transition-all shadow-lg active:scale-95"
+            >
+              END TURN
+            </button>
+          </div>
+        </MotionDiv>
+      </ModalWrapper>
       )}
     </AnimatePresence>
   );
@@ -318,15 +379,16 @@ export const PlayOptionsModal: React.FC<{
     const isEnabling = !selectedPlay.play.isBingo;
     
     if (isEnabling) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
       confetti({
         particleCount: 100,
         spread: 70,
-        origin: { 
-          x: 0.5,
-          y: 0.5 
-        },
+        origin: { x, y },
         colors: ['#f59e0b', '#fbbf24', '#ffffff', '#d97706'],
-        disableForReducedMotion: true
+        disableForReducedMotion: true,
+        zIndex: 99999
       });
     }
 
@@ -338,15 +400,15 @@ export const PlayOptionsModal: React.FC<{
 
   return (
     <ModalWrapper onClose={onClose}>
-      <MotionDiv initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden text-stone-900">
-        <div className="bg-amber-500 p-6 flex justify-between items-center text-white">
+      <MotionDiv initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden text-stone-900">
+        <div className="bg-amber-500 p-5 md:p-6 flex justify-between items-center text-white">
           <h3 className="text-xl font-bold">
             {isEditing ? 'Edit Word' : isAddingWord ? 'Add Missed Word' : selectedPlay.play.word}
           </h3>
           <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-full transition-colors"><X size={24} /></button>
         </div>
         
-        <div className="p-8">
+        <div className="p-5 md:p-8">
           {isEditing ? (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -356,7 +418,7 @@ export const PlayOptionsModal: React.FC<{
                   type="text" 
                   value={editWord} 
                   onChange={(e) => setEditWord(e.target.value.toUpperCase())}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                 />
               </div>
               <div className="space-y-2">
@@ -365,20 +427,20 @@ export const PlayOptionsModal: React.FC<{
                   type="number" 
                   value={editPoints} 
                   onChange={(e) => setEditPoints(e.target.value)}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                 />
               </div>
               <div className="flex gap-4 pt-2">
                 <button 
                   onClick={() => setIsEditing(false)} 
-                  className="flex-1 py-4 rounded-2xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
+                  className="flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleSaveEdit}
                   disabled={!editWord.trim() || isNaN(parseInt(editPoints))}
-                  className="flex-1 py-4 rounded-2xl font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 transition-all active:scale-95 shadow-lg shadow-amber-200"
+                  className="flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:bg-stone-200 transition-all active:scale-95 shadow-lg shadow-amber-200"
                 >
                   Save
                 </button>
@@ -404,7 +466,7 @@ export const PlayOptionsModal: React.FC<{
                       newPointsInputRef.current?.focus();
                     }
                   }}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                   placeholder="EX: TRIPLE"
                 />
               </div>
@@ -425,21 +487,21 @@ export const PlayOptionsModal: React.FC<{
                       newWordInputRef.current?.focus();
                     }
                   }}
-                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-4 rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
+                  className="w-full border-2 border-stone-200 focus:border-amber-500 p-3 md:p-4 rounded-xl md:rounded-2xl text-xl font-bold outline-none transition-colors bg-white text-stone-900"
                   placeholder="Points"
                 />
               </div>
               <div className="flex gap-4 pt-2">
                 <button 
                   onClick={() => setIsAddingWord(false)} 
-                  className="flex-1 py-4 rounded-2xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
+                  className="flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleAddWord}
                   disabled={!newWord.trim() || isNaN(parseInt(newPoints))}
-                  className="flex-1 py-4 rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-200 transition-all active:scale-95 shadow-lg shadow-emerald-200"
+                  className="flex-1 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-200 transition-all active:scale-95 shadow-lg shadow-emerald-200"
                 >
                   Add Word
                 </button>
@@ -449,7 +511,7 @@ export const PlayOptionsModal: React.FC<{
             <div className="grid gap-4">
               <button 
                 onClick={() => setIsEditing(true)} 
-                className="flex items-center gap-4 p-5 bg-amber-50 text-amber-700 rounded-2xl hover:bg-amber-100 transition-all active:scale-95 group border border-amber-100"
+                className="flex items-center gap-4 p-4 md:p-5 bg-amber-50 text-amber-700 rounded-2xl hover:bg-amber-100 transition-all active:scale-95 group border border-amber-100"
               >
                 <Pencil className="group-hover:rotate-12 transition-transform" />
                 <span className="font-bold">Edit Word Details</span>
@@ -457,7 +519,7 @@ export const PlayOptionsModal: React.FC<{
 
               <button 
                 onClick={() => setIsAddingWord(true)} 
-                className="flex items-center gap-4 p-5 bg-emerald-50 text-emerald-700 rounded-2xl hover:bg-emerald-100 transition-all active:scale-95 group border border-emerald-100"
+                className="flex items-center gap-4 p-4 md:p-5 bg-emerald-50 text-emerald-700 rounded-2xl hover:bg-emerald-100 transition-all active:scale-95 group border border-emerald-100"
               >
                 <Plus className="group-hover:scale-110 transition-transform" />
                 <span className="font-bold">Add Missed Word</span>
@@ -465,7 +527,7 @@ export const PlayOptionsModal: React.FC<{
               
               <button 
                 onClick={handleBingoToggle} 
-                className="flex items-center gap-4 p-5 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-all active:scale-95 group border border-stone-100"
+                className="flex items-center gap-4 p-4 md:p-5 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-all active:scale-95 group border border-stone-100"
               >
                 <Zap className={`${selectedPlay.play.isBingo ? 'text-amber-500 fill-amber-500' : 'text-stone-400'}`} /> 
                 <span className="font-bold">{selectedPlay.play.isBingo ? 'Remove Bingo Bonus' : 'Mark as Bingo (+50)'}</span>
@@ -475,7 +537,7 @@ export const PlayOptionsModal: React.FC<{
               
               <button 
                 onClick={() => onModify({ isRemoved: true })} 
-                className="flex items-center gap-4 p-5 bg-red-50 text-red-700 rounded-2xl hover:bg-red-100 transition-all active:scale-95 border border-red-100"
+                className="flex items-center gap-4 p-4 md:p-5 bg-red-50 text-red-700 rounded-2xl hover:bg-red-100 transition-all active:scale-95 border border-red-100"
               >
                 <Trash2 /> 
                 <span className="font-bold">Remove from Turn</span>

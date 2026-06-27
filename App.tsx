@@ -196,6 +196,7 @@ const App: React.FC = () => {
         gameRound={gameRound} 
         onAddWord={addWordToTurn} 
         onRemoveWord={removeWordFromTurn}
+        onModifyWord={(idx, updates) => modifyPlay(players[currentPlayerIndex].id, gameRound - 1, idx, updates)}
         onEndTurn={handleEndTurnRequest}
         currentPlays={players[currentPlayerIndex].turns[gameRound - 1]?.plays || []}
       />
