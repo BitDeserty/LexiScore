@@ -18,7 +18,7 @@ const MAX_PLAYERS = 4;
 const App: React.FC = () => {
   const {
     players, currentPlayerIndex, gameRound, getPlayerStats,
-    addPlayer, removePlayer, updatePlayerName, resetGame,
+    addPlayer, removePlayer, updatePlayerName, reorderPlayers, resetGame,
     addWordToTurn, addWordToSpecificTurn, removeWordFromTurn, endTurn, modifyPlay,
     updatePlayerTime, setAllPlayersTime
   } = useScrabbleGame();
@@ -156,6 +156,7 @@ const App: React.FC = () => {
             onCancelEditName={() => setEditingPlayerId(null)}
             onSetNameValue={setEditNameValue}
             onRemovePlayer={removePlayer}
+            onReorderPlayers={reorderPlayers}
             onUndoRemove={(pId, rIdx, pIdx) => modifyPlay(pId, rIdx, pIdx, { isRemoved: false })}
             onPlayClick={handlePlayClick}
             onOpenAddWord={() => setIsInputModalOpen(true)}

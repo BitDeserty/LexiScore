@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ClipboardList, Hash, Pencil, X, Plus, RotateCcw, Clock } from 'lucide-react';
+import { ClipboardList, Hash, Pencil, X, Plus, RotateCcw, Clock, GripVertical } from 'lucide-react';
 import { Player, Play, PlayerStats } from '../types';
 import { ENABLE_CHESS_CLOCK } from '../config';
 
@@ -24,6 +24,7 @@ interface ScoreSheetProps {
   onCancelEditName: () => void;
   onSetNameValue: (val: string) => void;
   onRemovePlayer: (id: string) => void;
+  onReorderPlayers: (players: Player[]) => void;
   onUndoRemove: (pId: string, rIdx: number, pIdx: number) => void;
   onPlayClick: (e: React.MouseEvent, pId: string, rIdx: number, pIdx: number, play: Play) => void;
   onOpenAddWord: () => void;
@@ -34,61 +35,173 @@ interface ScoreSheetProps {
 
 export const ScoreSheet: React.FC<ScoreSheetProps> = ({ 
   isClockActive, isClockRunning, players, currentPlayerIndex, gameRound, isGameStarted, editingPlayerId, editNameValue,
-  onStartEditName, onSaveName, onCancelEditName, onSetNameValue, onRemovePlayer,
+  onStartEditName, onSaveName, onCancelEditName, onSetNameValue, onRemovePlayer, onReorderPlayers,
   onUndoRemove, onPlayClick, onOpenAddWord, getPlayerStats, activeCellRef, editInputRef
-}) => (
-  <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
-    <div className="bg-[#0c1a26] p-5 border-b border-amber-50/30 flex justify-between items-center">
-      <h2 className="font-bold text-white flex items-center gap-3">
-        <ClipboardList className="text-amber-500" size={24} /> Score Sheet
-      </h2>
-    </div>
-    <div className="overflow-auto flex-grow custom-scrollbar flex flex-col">
-      <table className="w-full text-left border-collapse min-w-[600px] h-full flex flex-col">
-        <thead className="block bg-stone-50 border-b border-stone-200 text-stone-900">
-          <tr className="grid" style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
-            <th className="px-4 py-5 text-center text-stone-400 border-r border-stone-100 flex items-center justify-center"><Hash size={16} className="opacity-40" /></th>
-            {players.map((p, idx) => (
-              <th key={p.id} className={`px-4 py-5 flex items-center ${idx === currentPlayerIndex ? 'bg-amber-50/50' : ''}`}>
-                {editingPlayerId === p.id ? (
-                  <input 
-                    ref={editInputRef} 
-                    autoFocus
-                    onFocus={(e) => e.currentTarget.select()}
-                    type="text" 
-                    value={editNameValue} 
-                    onChange={(e) => onSetNameValue(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') onSaveName(); if (e.key === 'Escape') onCancelEditName(); }} 
-                    onBlur={onSaveName} 
-                    className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-900 font-bold outline-none shadow-sm placeholder-stone-400" 
-                  />
-                ) : (
-                  <div className="flex items-center justify-between gap-3 w-full group">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span onClick={() => onStartEditName(p)} className={`font-black text-lg truncate cursor-pointer hover:text-amber-600 ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>{p.name}</span>
-                      {isClockActive && (
-                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-sm font-bold tracking-widest shadow-inner border ${
-                          (p.timeRemaining || 0) <= 60 ? 'bg-red-900 border-red-800' : 'bg-stone-900 border-stone-800'
-                        } ${
-                          (p.timeRemaining || 0) <= 60 
-                            ? (isClockRunning && idx !== currentPlayerIndex ? 'text-red-400/30' : 'text-red-400')
-                            : (isClockRunning && idx !== currentPlayerIndex ? 'text-emerald-400/30' : 'text-emerald-400')
-                        }`}>
-                          <Clock size={12} className={(p.timeRemaining || 0) <= 60 ? 'animate-pulse' : ''} />
-                          {formatTime(p.timeRemaining || 0)}
-                        </div>
-                      )}
+}) => {
+  const [draggedIdx, setDraggedIdx] = React.useState<number | null>(null);
+  const [draggedOverIdx, setDraggedOverIdx] = React.useState<number | null>(null);
+  const headerRowRef = React.useRef<HTMLTableRowElement | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (isGameStarted) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+    setDraggedIdx(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (isGameStarted) return;
+    e.preventDefault();
+    if (draggedOverIdx !== index) {
+      setDraggedOverIdx(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    if (isGameStarted) return;
+    e.preventDefault();
+    const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (!isNaN(sourceIndex) && sourceIndex !== targetIndex) {
+      const updatedPlayers = [...players];
+      const [removed] = updatedPlayers.splice(sourceIndex, 1);
+      updatedPlayers.splice(targetIndex, 0, removed);
+      onReorderPlayers(updatedPlayers);
+    }
+    setDraggedIdx(null);
+    setDraggedOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDraggedOverIdx(null);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent, index: number) => {
+    if (isGameStarted) return;
+    setDraggedIdx(index);
+    setDraggedOverIdx(index);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isGameStarted || draggedIdx === null || !headerRowRef.current) return;
+    
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    
+    const touch = e.touches[0];
+    const rect = headerRowRef.current.getBoundingClientRect();
+    const containerLeft = rect.left;
+    const containerWidth = rect.width;
+    
+    const xOffset = touch.clientX - containerLeft;
+    
+    if (xOffset < 48) {
+      setDraggedOverIdx(0);
+      return;
+    }
+    
+    const playerAreaX = xOffset - 48;
+    const playerWidth = (containerWidth - 48) / players.length;
+    let targetIdx = Math.floor(playerAreaX / playerWidth);
+    targetIdx = Math.max(0, Math.min(targetIdx, players.length - 1));
+    
+    if (draggedOverIdx !== targetIdx) {
+      setDraggedOverIdx(targetIdx);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isGameStarted) return;
+    if (draggedIdx !== null && draggedOverIdx !== null && draggedIdx !== draggedOverIdx) {
+      const updatedPlayers = [...players];
+      const [removed] = updatedPlayers.splice(draggedIdx, 1);
+      updatedPlayers.splice(draggedOverIdx, 0, removed);
+      onReorderPlayers(updatedPlayers);
+    }
+    setDraggedIdx(null);
+    setDraggedOverIdx(null);
+  };
+
+  return (
+    <div className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden flex flex-col min-h-[600px]">
+      <div className="bg-[#0c1a26] p-5 border-b border-amber-50/30 flex justify-between items-center">
+        <h2 className="font-bold text-white flex items-center gap-3">
+          <ClipboardList className="text-amber-500" size={24} /> Score Sheet
+        </h2>
+      </div>
+      <div className="overflow-auto flex-grow custom-scrollbar flex flex-col">
+        <table className="w-full text-left border-collapse min-w-[600px] h-full flex flex-col">
+          <thead className="block bg-stone-50 border-b border-stone-200 text-stone-900">
+            <tr ref={headerRowRef} className="grid" style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
+              <th className="px-4 py-5 text-center text-stone-400 border-r border-stone-100 flex items-center justify-center"><Hash size={16} className="opacity-40" /></th>
+              {players.map((p, idx) => (
+                <th 
+                  key={p.id} 
+                  draggable={!isGameStarted}
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onDragLeave={() => setDraggedOverIdx(null)}
+                  className={`px-4 py-5 flex items-center transition-all select-none ${
+                    idx === currentPlayerIndex ? 'bg-amber-50/50' : ''
+                  } ${
+                    draggedIdx === idx ? 'opacity-40 border-2 border-dashed border-stone-300 bg-stone-100/50' : ''
+                  } ${
+                    draggedOverIdx === idx ? 'bg-amber-100/30 border-2 border-dashed border-amber-400 scale-[0.98]' : ''
+                  }`}
+                >
+                  {editingPlayerId === p.id ? (
+                    <input 
+                      ref={editInputRef} 
+                      autoFocus
+                      onFocus={(e) => e.currentTarget.select()}
+                      type="text" 
+                      value={editNameValue} 
+                      onChange={(e) => onSetNameValue(e.target.value)} 
+                      onKeyDown={(e) => { if (e.key === 'Enter') onSaveName(); if (e.key === 'Escape') onCancelEditName(); }} 
+                      onBlur={onSaveName} 
+                      className="w-full bg-white border-2 border-amber-400 rounded-lg px-2 py-1 text-stone-900 font-bold outline-none shadow-sm placeholder-stone-400" 
+                    />
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 w-full group">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {!isGameStarted && (
+                          <div 
+                            className="text-stone-300 hover:text-amber-500 cursor-grab active:cursor-grabbing p-1 shrink-0 touch-none" 
+                            title="Drag to reorder player"
+                            onTouchStart={(e) => handleTouchStart(e, idx)}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                          >
+                            <GripVertical size={16} />
+                          </div>
+                        )}
+                        <span onClick={() => onStartEditName(p)} className={`font-black text-lg truncate cursor-pointer hover:text-amber-600 ${idx === currentPlayerIndex ? 'text-amber-700' : 'text-stone-800'}`}>{p.name}</span>
+                        {isClockActive && (
+                          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-sm font-bold tracking-widest shadow-inner border ${
+                            (p.timeRemaining || 0) <= 60 ? 'bg-red-900 border-red-800' : 'bg-stone-900 border-stone-800'
+                          } ${
+                            (p.timeRemaining || 0) <= 60 
+                              ? (isClockRunning && idx !== currentPlayerIndex ? 'text-red-400/30' : 'text-red-400')
+                              : (isClockRunning && idx !== currentPlayerIndex ? 'text-emerald-400/30' : 'text-emerald-400')
+                          }`}>
+                            <Clock size={12} className={(p.timeRemaining || 0) <= 60 ? 'animate-pulse' : ''} />
+                            {formatTime(p.timeRemaining || 0)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => onStartEditName(p)} className="text-stone-300 hover:text-amber-500 opacity-20 group-hover:opacity-100"><Pencil size={14} /></button>
+                        {!isGameStarted && players.length > 1 && <button onClick={() => onRemovePlayer(p.id)} className="text-stone-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><X size={16} /></button>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => onStartEditName(p)} className="text-stone-300 hover:text-amber-500 opacity-20 group-hover:opacity-100"><Pencil size={14} /></button>
-                      {!isGameStarted && players.length > 1 && <button onClick={() => onRemovePlayer(p.id)} className="text-stone-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><X size={16} /></button>}
-                    </div>
-                  </div>
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
         <tbody className="block flex-grow divide-y divide-stone-100">
           {Array.from({ length: gameRound }).map((_, roundIdx) => (
             <tr key={roundIdx} className={`grid ${roundIdx === gameRound - 1 ? 'bg-amber-50/10' : 'hover:bg-stone-50/50'}`} style={{ gridTemplateColumns: `48px repeat(${players.length}, 1fr)` }}>
@@ -179,3 +292,4 @@ export const ScoreSheet: React.FC<ScoreSheetProps> = ({
     </div>
   </div>
 );
+};

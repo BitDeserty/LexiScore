@@ -86,6 +86,11 @@ export const useScrabbleGame = () => {
     persist(newPlayers, currentPlayerIndex, gameRound);
   }, [players, currentPlayerIndex, gameRound]);
 
+  const reorderPlayers = useCallback((newPlayers: Player[]) => {
+    setPlayers(newPlayers);
+    persist(newPlayers, currentPlayerIndex, gameRound);
+  }, [currentPlayerIndex, gameRound]);
+
   const resetGame = useCallback(() => {
     const fresh = players.map(p => ({ ...p, turns: [], timeRemaining: DEFAULT_CLOCK_MINUTES * 60 }));
     setPlayers(fresh);
@@ -240,6 +245,7 @@ export const useScrabbleGame = () => {
     addPlayer,
     removePlayer,
     updatePlayerName,
+    reorderPlayers,
     resetGame,
     addWordToTurn,
     addWordToSpecificTurn,

@@ -15,14 +15,25 @@ interface HeaderProps {
 
 export const GameHeader: React.FC<HeaderProps> = ({ 
   isGameStarted, onReset, onAddPlayer, maxPlayers, playerCount, isClockActive, onToggleClock 
-}) => (
-  <header className="bg-[#0c1a26] text-white py-6 border-b-4 border-amber-500">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
-      <div className="flex items-center gap-5">
-        <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800">
-          <img src="/bitdeserty_avatar_small.jpg" alt="Logo" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display='none')} />
-          <Trophy className="text-amber-500 absolute" size={28} />
-        </div>
+}) => {
+  const [imgFailed, setImgFailed] = React.useState(false);
+
+  return (
+    <header className="bg-[#0c1a26] text-white py-6 border-b-4 border-amber-500">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex items-center gap-5">
+          <div className="w-14 h-14 rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.4)] border-2 border-amber-500/30 overflow-hidden flex items-center justify-center bg-stone-800 relative">
+            {!imgFailed ? (
+              <img 
+                src="/bitdeserty_avatar_small.jpg" 
+                alt="Logo" 
+                className="w-full h-full object-cover" 
+                onError={() => setImgFailed(true)} 
+              />
+            ) : (
+              <Trophy className="text-amber-500" size={28} />
+            )}
+          </div>
         <div>
           <h1 className="text-4xl font-bold tracking-tight scrabble-font leading-none text-white drop-shadow-md">LexiScore</h1>
           <p className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mt-2">By BitDeserty Studios</p>
@@ -46,7 +57,8 @@ export const GameHeader: React.FC<HeaderProps> = ({
       </div>
     </div>
   </header>
-);
+  );
+};
 
 interface TurnBarProps {
   currentPlayerName: string;
